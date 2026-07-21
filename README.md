@@ -1,5 +1,5 @@
 # My Incomplete NES Emulator (MINE)
-**TECHNICALLY** runs NES roms.
+It barely works, but it's _**MINE**_.
 
 **48/56** distinct instructions and **143/151** opcodes implemented.  
 Emulator largely unoptimized, causing execution to be significantly slower than real hardware.  
@@ -14,6 +14,7 @@ Logic, sprites, backgrounds, and color palettes are emulated accurately here.
 <img width="640" height="360" alt="emudemo" src="https://github.com/user-attachments/assets/89042d2d-18a9-43c1-a8ec-2cf049c0926d" />
 
 The graphics are garbled but gameplay logic runs accurately.  
+
 
 This project has been created using **webpack-cli**, you can now run
 
