@@ -1,11 +1,12 @@
-# My Incomplete NES Emulator (Mine)
+# My Incomplete NES Emulator (MINE)
 **TECHNICALLY** runs NES roms.
 
 **48/56** distinct instructions and **143/151** opcodes implemented.  
 Emulator largely unoptimized, causing execution to be significantly slower than real hardware.  
 
 Running a custom test rom compared to Mesen.
-<img width="800" height="384" alt="emudemo2" src="https://github.com/user-attachments/assets/c7303d31-8307-46c6-ad41-9e74404cc03d" />
+<img width="800" height="384" alt="emudemo2" src="https://github.com/user-attachments/assets/410d2d20-56c8-409d-b1c6-63363b5d859e" />
+
 
 Logic, sprites, backgrounds, and color palettes are emulated accurately here.    
 
