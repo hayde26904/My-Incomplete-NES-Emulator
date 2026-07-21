@@ -1,4 +1,4 @@
-# Minimum Viable NES Emulator
+# My Incomplete NES Emulator (Mine)
 **TECHNICALLY** runs NES roms.
 
 **48/56** distinct instructions and **143/151** opcodes implemented.  
