@@ -4,7 +4,8 @@ It barely works, but it's _**MINE**_.
 Nintendo Entertainment System emulator, written in Typescript. Written as an experiment to learn more about low level hardware. I prioritized getting an actual game to run over accuracy.
 
 **48/56** distinct instructions and **143/151** opcodes implemented.  
-Emulator largely unoptimized, causing execution to be significantly slower than real hardware.  
+
+Execution is significantly slower than real hardware due to limited optimization.
 
 Running a custom test ROM compared to Mesen.
 <img width="800" height="384" alt="emudemo2" src="https://github.com/user-attachments/assets/410d2d20-56c8-409d-b1c6-63363b5d859e" />
