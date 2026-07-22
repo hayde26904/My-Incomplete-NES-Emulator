@@ -1,6 +1,8 @@
 # My Incomplete NES Emulator (MINE)
 It barely works, but it's _**MINE**_.
 
+Nintendo Entertainment System emulator, written in Typescript. Written as an experiment to learn more about low level hardware. I prioritized getting an actual game to run over accuracy.
+
 **48/56** distinct instructions and **143/151** opcodes implemented.  
 Emulator largely unoptimized, causing execution to be significantly slower than real hardware.  
 
