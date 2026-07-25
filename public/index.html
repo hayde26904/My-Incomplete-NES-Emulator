@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>The Worst NES Emulator</title>
+    <title>My Incomplete NES Emulator</title>
     <style>
         #debugCanvas {
             display: none;
@@ -12,17 +12,14 @@
 </head>
 <body>
     <button id="nmi-btn">NMI</button>
-    <button id="last-op-btn">Last Op</button>
     <button id="next-op-btn">Next Op</button>
     <button id="pause-btn">Pause</button>
     <input type="text" id="breakpoint-addr-input" placeholder="Breakpoint Address (hex)">
     <input type="text" id="log-var-input" placeholder="Log Variable">
     <button id="log-var-btn">Log Variable</button>
+    <button id="connect-server-btn">Connect Debug Server</button>
     <canvas id="canvas"></canvas>
     <input type="file" id="romInput" accept=".nes">
-    <script src="js/main.js"></script>
-    <div id="memory-viewer">
-        
-    </div>
+    <script src="main.js"></script>
 </body>
 </html>

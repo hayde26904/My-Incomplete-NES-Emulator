@@ -1,9 +1,0 @@
-export const PPUCTRL = 0x2000;
-export const PPUMASK = 0x2001;
-export const PPUSTATUS = 0x2002;
-export const OAMADDR = 0x2003;
-export const OAMDATA = 0x2004;
-export const PPUSCROLL = 0x2005;
-export const PPUADDR = 0x2006;
-export const PPUDATA = 0x2007;
-export const OAMDMA = 0x4014;

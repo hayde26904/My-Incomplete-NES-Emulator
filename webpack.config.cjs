@@ -9,9 +9,9 @@ const isProduction = process.env.NODE_ENV == 'production';
 const stylesHandler = 'style-loader';
 
 const config = {
-    entry: './src/index.ts',
+    entry: './src/emulator/index.ts',
     output: {
-        path: path.resolve(__dirname, 'public/js'),
+        path: path.resolve(__dirname, 'public'),
     },
     plugins: [
        /* new HtmlWebpackPlugin({

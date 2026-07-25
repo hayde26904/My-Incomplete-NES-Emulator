@@ -1,5 +1,6 @@
 import { Memory } from "./memory";
 import { ops } from "./operation";
+import { EmulatorEvent, OpExecutionInfo } from "../shared/debug-types";
 import { opcodeMap } from "./operation";
 import { RAM } from "./ram";
 import { ROM } from "./rom";
@@ -89,12 +90,14 @@ export class CPU {
     private IRQvector: number = 0;
 
     private NMITriggered: boolean = false;
+    private frameCount: number = 0;
 
-    private opArgs = new Uint8Array(2); //reusable array for storing operation arguments, max size is 2 because the largest instruction is 3 bytes (1 for opcode and 2 for args)
+    private operands = new Uint8Array(2); //reusable array for storing operation arguments, max size is 2 because the largest instruction is 3 bytes (1 for opcode and 2 for args)
 
     private logs = new Array<string>();
-    private lastOpInfo = {
-        size: 0,
+    private lastOpInfo: OpExecutionInfo = {
+        opCode: 0,
+        PC: 0,
         A: 0,
         X: 0,
         Y: 0,
@@ -161,53 +164,44 @@ export class CPU {
 
             let opMethod = operation.method;
             let opAddrMode = operation.addrMode;
-            let opArgType = operation.argType;
+            let operandType = operation.argType;
             let opCycles = operation.cycles;
             let opSize = addrModeSizeMap.get(opAddrMode);
             let numArgs = opSize - 1;
 
             for (let i = 0; i < numArgs; i++) {
-                this.opArgs[i] = this.bus.read(this.PC + i + 1);
+                this.operands[i] = this.bus.read(this.PC + i + 1);
             }
 
-            let arg = addrModeHandlerMap.get(opAddrMode)(this.bus, this, this.opArgs, opArgType);
-            let evaluatedArg;
-            switch (opArgType) {
-                case argTypes.value:
-                    evaluatedArg = arg;
+            let normalizedOperand = addrModeHandlerMap.get(opAddrMode)(this.bus, this, this.operands, operandType);
+            let evaluatedOperand;
+            switch (operandType) {
+                case argTypes.value: // treat it as a value
+                    evaluatedOperand = normalizedOperand;
                     break
-                case argTypes.reference:
-                    evaluatedArg = this.bus.read(arg);
+                case argTypes.reference: // treat it as a reference and read from memory
+                    evaluatedOperand = this.bus.read(normalizedOperand);
                     break;
             }
 
-            let oldPC = this.PC;
-            this.PC += opSize;
-
-            const opInfo = opMethod(this, evaluatedArg, opAddrMode);
-            const executionInfo = {
-                PC: Util.hex(oldPC),
-                name: operation.name,
-                log: opInfo.log,
-                A: Util.hex(this.Areg),
-                X: Util.hex(this.Xreg),
-                Y: Util.hex(this.Yreg),
-                SP: this.SP,
-                opcode: Util.hex(opcode),
-                args: Array.from(this.opArgs.slice(0, numArgs)).map(byte => Util.hex(byte)),
-                size: opSize
-            };
-
+            // collect info before execution
             this.lastOpInfo = {
-                size: opSize,
+                opCode: opcode,
+                PC: this.PC,
                 A: this.Areg,
                 X: this.Xreg,
                 Y: this.Yreg,
-                SP: this.SP
-            }
+                SP: this.SP,
+            };
+
+
+            this.PC += opSize;
+
+            // execute op method
+            opMethod(this, evaluatedOperand, opAddrMode);
 
             if (logOpInfo) {
-                console.log(executionInfo);
+                console.log(this.lastOpInfo);
             }
 
             return opCycles;
@@ -219,13 +213,8 @@ export class CPU {
         }
     }
 
-    public executeLastOperation(logOpInfo: boolean = false): number {
-        this.PC -= this.lastOpInfo.size;
-        this.Areg = this.lastOpInfo.A;
-        this.Xreg = this.lastOpInfo.X;
-        this.Yreg = this.lastOpInfo.Y;
-        this.SP = this.lastOpInfo.SP;
-        return this.executeNextOperation(logOpInfo);
+    public getLastOpInfo() {
+        return this.lastOpInfo;
     }
 
     public goToNMI() {
@@ -377,6 +366,8 @@ export class CPU {
 
     public endNMI(): void {
         this.NMITriggered = false;
+        this.frameCount++;
+        console.log(`frame: ${this.frameCount}`);
     }
 
     public log(message: string): void {

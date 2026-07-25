@@ -38,8 +38,6 @@ interface MemoryRegion {
 
 export class PPU {
 
-    public cpu: CPU;
-
     public outputScaleX: number = 4;
     public outputScaleY: number = 4;
 

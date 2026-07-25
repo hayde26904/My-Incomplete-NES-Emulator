@@ -7,6 +7,7 @@ import { Util } from './util';
 import { Bus } from './bus';
 import { Mapper } from './mapper';
 import { mapperMap } from './mapperMap';
+import { EmulatorEvent, OpExecutionInfo } from '../shared/debug-types';
 
 const TARGET_FPS = 60
 
@@ -15,6 +16,8 @@ const CYCLES_PER_FRAME = 29780;
 const NMI_CYCLE = 27507
 
 const NES_FRAME_TIME = 1000 / 60.098; // ~16.64ms per frame
+
+const DEBUG_SERVER_URL = "ws://localhost:3000";
 
 const canvas = document.getElementById('canvas') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d');
@@ -40,19 +43,60 @@ ppu.setBus(bus);
 
 let currentPrgRom: ROM;
 
+
+// debug buttons
 document.getElementById('nmi-btn')?.addEventListener('click', ppu.NMI.bind(ppu));
-document.getElementById('next-op-btn')?.addEventListener('click', cpu.executeNextOperation.bind(cpu, true));
-document.getElementById('last-op-btn')?.addEventListener('click', cpu.executeLastOperation.bind(cpu, true));
+document.getElementById('next-op-btn')?.addEventListener('click', executeNextOperation.bind(this, true, null));
+
 document.getElementById('pause-btn')?.addEventListener('click', () => {
-  if(cpuPaused){
+  if (cpuPaused) {
     resume();
   } else {
     pause();
   }
 });
+
 document.getElementById('log-var-btn')?.addEventListener('click', () => {
   const val = (document.getElementById('log-var-input') as HTMLInputElement).value;
   console.log(eval(val)); // eval is generally bad but this is just for debugging so its fine
+});
+
+
+let debugServerConnected = false;
+
+document.getElementById('connect-server-btn')?.addEventListener('click', () => {
+  if (debugServerConnected) return;
+
+  const socket = new WebSocket(DEBUG_SERVER_URL);
+
+  socket.addEventListener("open", () => {
+    debugServerConnected = true;
+    pause();
+  });
+
+  socket.addEventListener("message", (event) => {
+    const message = event.data;
+
+    if (message === "step") {
+
+      executeNextOperation();
+
+      const lastOpInfo: OpExecutionInfo = cpu.getLastOpInfo();
+      
+      // if connected to debug server
+      if (socket !== null) {
+        const event: EmulatorEvent = {
+          event: "step",
+          data: lastOpInfo
+        }
+
+        socket.send(JSON.stringify(event));
+      }
+
+    }
+
+  });
+
 });
 
 const breakpointInput = document.getElementById('breakpoint-addr-input') as HTMLInputElement;
@@ -104,8 +148,6 @@ function loadProgram(rom: ROM) {
 
   ppu.setMirroringMode(romInfo.nametableMirroring);
 
-  ppu.cpu = cpu; // set reference to cpu in ppu for debugging purposes
-
   cpu.reset();
   ppu.reset();
   cpu.loadProgram(prg);
@@ -119,17 +161,20 @@ let lastFrameTime = performance.now();
 let cpuPaused = false;
 let breakpoint: number | null = null;
 
-function pause(){
+function pause() {
   cpuPaused = true
   document.getElementById('pause-btn')!.textContent = "Resume";
 }
 
 function resume() {
+  if (debugServerConnected) return // Under no circumstances should emulation be unpaused while server connected. It will send messages at an extreme rate.
   cpuPaused = false;
   document.getElementById('pause-btn')!.textContent = "Pause";
 }
 
 pause();
+
+let cycleCount = 0;
 
 function loop() {
 
@@ -142,10 +187,12 @@ function loop() {
     return;
   }
 
-  //const cyclesToExecute = Math.floor((CYCLES_PER_SECOND / TARGET_FPS) * (deltaTime / 1000));
-  const cyclesToExecuteFrame = CYCLES_PER_FRAME;
-  
-  executeCPUCycles(cyclesToExecuteFrame);
+  while (cycleCount < CYCLES_PER_FRAME && !cpuPaused) {
+    const cyclesExecuted = executeNextOperation();
+    cycleCount += cyclesExecuted;
+  }
+
+  cycleCount = 0;
 
   //console.log(`FRAME END  PC: ${Util.hex(cpu.getPC())}`);
   //console.log(`NMI START  PC: ${Util.hex(cpu.getPC())}`);
@@ -156,38 +203,28 @@ function loop() {
 
 }
 
-function executeCPUCycles(cyclesToExecute: number) {
-  if (cpuPaused) return;
-  let cyclesExecuted = 0;
+// wrapper for CPU function to include PPU ticks and breakpoint functionality
+function executeNextOperation(log: boolean = false) {
 
   //console.log(`FRAME START  PC: ${Util.hex(cpu.getPC())}`);
-  while (cyclesExecuted < cyclesToExecute) {
 
-    const cycles = cpu.executeNextOperation(false);
-    /*if (cycles === -1) {
-      pause();
-      break;
-    }*/
-    cyclesExecuted += cycles;
+  const cycles = cpu.executeNextOperation(log);
 
-    for (let i = 0; i < cycles * 3; i++){
-      ppu.tick();
-    }
-
-    if (breakpoint !== null && cpu.getPC() === breakpoint) {
-      console.log(`Hit breakpoint at ${Util.hex(breakpoint)}!`);
-      pause();
-      break;
-    }
-    
+  for (let i = 0; i < cycles * 3; i++) {
+    ppu.tick();
   }
 
-  return cyclesExecuted;
+  if (breakpoint !== null && cpu.getPC() === breakpoint) {
+    console.log(`Hit breakpoint at ${Util.hex(breakpoint)}!`);
+    pause();
+  }
+
+  return cycles;
 
 }
 
 document.addEventListener('keydown', (e) => {
-    if (e.key === 'd') {
-        ppu.debugDumpNametable(0);
-    }
+  if (e.key === 'd') {
+    ppu.debugDumpNametable(0);
+  }
 });

@@ -5,10 +5,11 @@
     "module": "es6",
     "target": "es2015",
     "allowJs": true,
-    "outDir": "public",
+    "outDir": "dist",
     "rootDir": "src",
     "moduleResolution": "Node",
     "resolveJsonModule": true,
+    "noEmit": false
   },
   //"files": ["src/example/index.ts"]
   "include": [
