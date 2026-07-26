@@ -18,7 +18,7 @@ export class MINETransport extends EmulatorTransport {
         const PORT = 3000;
         this.wss = new WebSocketServer({ port: PORT });
 
-        console.log(`${this.name} ws server running at port ${PORT}. Waiting for ${this.name}`);
+        console.log(`${this.name} server running at port ${PORT}. Waiting for ${this.name}`);
 
         this.wss.on('connection', (socket: WebSocket) => {
 
@@ -50,6 +50,11 @@ export class MINETransport extends EmulatorTransport {
     step() {
         if (!this.emuSocket) return;
         this.emuSocket.send("step");
+    }
+
+    reset() {
+        if (!this.emuSocket) return;
+        this.emuSocket.send("reset");
     }
 
 }

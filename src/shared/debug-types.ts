@@ -7,6 +7,7 @@ export interface OpExecutionInfo {
     X: number,
     Y: number,
     SP: number,
+    status: number
 }
 
 export type TransportEventName =

@@ -77,22 +77,29 @@ document.getElementById('connect-server-btn')?.addEventListener('click', () => {
   socket.addEventListener("message", (event) => {
     const message = event.data;
 
-    if (message === "step") {
+    switch (message) {
+      case "reset":
 
-      executeNextOperation();
 
-      const lastOpInfo: OpExecutionInfo = cpu.getLastOpInfo();
-      
-      // if connected to debug server
-      if (socket !== null) {
-        const event: EmulatorEvent = {
-          event: "step",
-          data: lastOpInfo
+
+        break;
+      case "step":
+
+        executeNextOperation();
+
+        const lastOpInfo: OpExecutionInfo = cpu.getLastOpInfo();
+
+        // if connected to debug server
+        if (socket !== null) {
+          const event: EmulatorEvent = {
+            event: "step",
+            data: lastOpInfo
+          }
+
+          socket.send(JSON.stringify(event));
         }
 
-        socket.send(JSON.stringify(event));
-      }
-
+        break;
     }
 
   });
@@ -182,10 +189,10 @@ function loop() {
   //const deltaTime = (currentTime - lastFrameTime) / (1000 / TARGET_FPS);
   const elapsedTime = currentTime - lastFrameTime;
 
-  if (elapsedTime < NES_FRAME_TIME) { // skip frame if we haven't reached the target frame time yet
+  /*if (elapsedTime < NES_FRAME_TIME) { // skip frame if we haven't reached the target frame time yet
     requestAnimationFrame(loop);
     return;
-  }
+  }*/
 
   while (cycleCount < CYCLES_PER_FRAME && !cpuPaused) {
     const cyclesExecuted = executeNextOperation();

@@ -19,4 +19,5 @@ export abstract class EmulatorTransport {
 
     abstract start(): void;
     abstract step(): void;
+    abstract reset(): void;
 }

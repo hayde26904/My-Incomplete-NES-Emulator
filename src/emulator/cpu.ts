@@ -1,7 +1,7 @@
 import { Memory } from "./memory";
 import { ops } from "./operation";
 import { EmulatorEvent, OpExecutionInfo } from "../shared/debug-types";
-import { opcodeMap } from "./operation";
+import { opcodes } from "./operation";
 import { RAM } from "./ram";
 import { ROM } from "./rom";
 import * as addrModeHandlers from "./addrModeHandlers";
@@ -101,7 +101,8 @@ export class CPU {
         A: 0,
         X: 0,
         Y: 0,
-        SP: 0
+        SP: 0,
+        status: 0
     };
 
     constructor() {
@@ -157,23 +158,23 @@ export class CPU {
     //returns number of cycles used
     public executeNextOperation(logOpInfo: boolean = false): number {
 
-        let opcode = this.bus.read(this.PC);
-        let operation = opcodeMap.get(opcode);
+        const opcode = this.bus.read(this.PC);
+        const operation = opcodes[opcode]
 
         if (operation) {
 
-            let opMethod = operation.method;
-            let opAddrMode = operation.addrMode;
-            let operandType = operation.argType;
-            let opCycles = operation.cycles;
-            let opSize = addrModeSizeMap.get(opAddrMode);
-            let numArgs = opSize - 1;
+            const opMethod = operation.method;
+            const opAddrMode = operation.addrMode;
+            const operandType = operation.argType;
+            const opCycles = operation.cycles;
+            const opSize = addrModeSizeMap.get(opAddrMode);
+            const numArgs = opSize - 1;
 
             for (let i = 0; i < numArgs; i++) {
                 this.operands[i] = this.bus.read(this.PC + i + 1);
             }
 
-            let normalizedOperand = addrModeHandlerMap.get(opAddrMode)(this.bus, this, this.operands, operandType);
+            const normalizedOperand = addrModeHandlerMap.get(opAddrMode)(this.bus, this, this.operands, operandType);
             let evaluatedOperand;
             switch (operandType) {
                 case argTypes.value: // treat it as a value
@@ -184,15 +185,21 @@ export class CPU {
                     break;
             }
 
-            // collect info before execution
-            this.lastOpInfo = {
-                opCode: opcode,
-                PC: this.PC,
-                A: this.Areg,
-                X: this.Xreg,
-                Y: this.Yreg,
-                SP: this.SP,
-            };
+            if (logOpInfo) {
+
+                // collect info before execution
+                this.lastOpInfo = {
+                    opCode: opcode,
+                    PC: this.PC,
+                    A: this.Areg,
+                    X: this.Xreg,
+                    Y: this.Yreg,
+                    SP: this.SP,
+                    status: this.getStatusReg()
+                };
+
+                console.log(this.lastOpInfo);
+            }
 
 
             this.PC += opSize;
@@ -200,16 +207,12 @@ export class CPU {
             // execute op method
             opMethod(this, evaluatedOperand, opAddrMode);
 
-            if (logOpInfo) {
-                console.log(this.lastOpInfo);
-            }
-
             return opCycles;
 
         } else {
             //console.log(`PC: ${Util.hex(this.PC)}  Invalid or unimplemented opcode: ${Util.hex(opcode)}`);
             this.PC++;
-            return -1; // indicate invalid opcode with -1 cycles
+            return 0;
         }
     }
 

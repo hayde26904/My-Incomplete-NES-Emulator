@@ -3,8 +3,11 @@ import { EmulatorTransport } from "./transports/emulator-transport.js";
 
 const STEP_INTERVAL = 1;
 
-const transports = new Set<EmulatorTransport>();
+const transports = new Set<EmulatorTransport>(); // transports attached
 const connectedTransports = new Set<EmulatorTransport>(); // emulators connected over the network
+const lastStepResults = new Map<EmulatorTransport, OpExecutionInfo>();
+
+let stopRequested = false;
 
 export function addTransport(transport: EmulatorTransport) {
     transports.add(transport);
@@ -37,7 +40,7 @@ function handleConnect(transport: EmulatorTransport) {
     connectedTransports.add(transport);
     console.log(`${transport.name} connected successfully`);
 
-    if (connectedTransports.size >= 1) {
+    if (connectedTransports.size > 1) {
         startStepping();
     }
     
@@ -46,26 +49,29 @@ function handleConnect(transport: EmulatorTransport) {
 function handleDisconnect(transport: EmulatorTransport) {
     connectedTransports.delete(transport);
     console.log(`${transport.name} disconnected successfully`);
+
+    if (connectedTransports.size < 2) {
+        stopStepping();
+    }
 }
 
 function handleStep(transport: EmulatorTransport, opData: OpExecutionInfo) {
     console.log(`${transport.name}: ${JSON.stringify(opData)}`);
-    setTimeout(() => {
 
-        if (connectedTransports.has(transport)) {
-            transport.step();
-        }
-
-    }, STEP_INTERVAL);
+    if (stopRequested) {
+        stopRequested = false;
+        return;
+    }
+    
 }
 
 function startStepping() {
     console.log("STARTING STEPPING");
     connectedTransports.forEach((transport: EmulatorTransport) => {
-        transport.step();
+        transport.reset();
     });
 }
 
 function stopStepping() {
-
+    stopRequested = true;
 }

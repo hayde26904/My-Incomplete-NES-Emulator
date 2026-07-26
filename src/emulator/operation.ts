@@ -459,16 +459,17 @@ export const ops: Array<Operation> = [
 
 ];
 
-export const opcodeMap: Map<number, { name: string, method: operationMethod, addrMode: number, argType: number, cycles: number }> = new Map();
+// make opcode array at runtime for faster execution
+export const opcodes: Array<{ name: string, method: operationMethod, addrMode: number, argType: number, cycles: number }> = new Array(255);
 
 ops.forEach(op => {
     op.opCodes.forEach((opcode, index) => {
-        opcodeMap.set(opcode, {
+        opcodes[opcode] = {
             name: op.name,
             method: op.method,
             addrMode: op.addrModes[index],
             argType: op.argTypes[index],
             cycles: op.cycles[index]
-        });
+        }
     });
 });
