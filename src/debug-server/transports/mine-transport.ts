@@ -1,7 +1,7 @@
 import { WebSocket, WebSocketServer } from "ws";
 import {EmulatorTransport} from "./emulator-transport.js"
 import { EmulatorEventName, OpExecutionInfo } from "../../shared/debug-types.js";
-const PORT = 3000;
+
 
 export class MINETransport extends EmulatorTransport {
 
