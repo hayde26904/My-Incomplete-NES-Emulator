@@ -1,11 +1,7 @@
-import { Memory } from "./memory";
-import { ops } from "./operation";
-import { EmulatorEvent, OpExecutionInfo } from "../shared/debug-types";
 import { opcodes } from "./operation";
 import { RAM } from "./ram";
 import { ROM } from "./rom";
 import * as addrModeHandlers from "./addrModeHandlers";
-import * as headerParser from "./headerParser";
 import { argTypes } from "./operation";
 import { Util } from "./util";
 import { Bus } from "./bus";
@@ -67,6 +63,17 @@ export const addrModeHandlerMap: Map<number, addrModeHandlers.addrModeHandler> =
     [addrModes.INDIRECT_X, addrModeHandlers.indirectX],
     [addrModes.INDIRECT_Y, addrModeHandlers.indirectY]
 ]);
+
+export interface OpExecutionInfo {
+    opLog?: string,
+    PC: number,
+    opCode: number,
+    A: number,
+    X: number,
+    Y: number,
+    SP: number,
+    status: number
+}
 
 export class CPU {
 
@@ -156,7 +163,7 @@ export class CPU {
     }
 
     //returns number of cycles used
-    public executeNextOperation(logOpInfo: boolean = false): number {
+    public executeNextOperation(debug: boolean = false): number {
 
         const opcode = this.bus.read(this.PC);
         const operation = opcodes[opcode]
@@ -185,7 +192,7 @@ export class CPU {
                     break;
             }
 
-            if (logOpInfo) {
+            if (true) {
 
                 // collect info before execution
                 this.lastOpInfo = {
@@ -198,14 +205,15 @@ export class CPU {
                     status: this.getStatusReg()
                 };
 
-                console.log(this.lastOpInfo);
             }
 
 
             this.PC += opSize;
 
             // execute op method
-            opMethod(this, evaluatedOperand, opAddrMode);
+            opMethod(this, evaluatedOperand, opAddrMode, debug);
+
+            if (debug) this.lastOpInfo.opLog = this.popLogMessage(); // pop the log message after execution
 
             return opCycles;
 
@@ -214,6 +222,14 @@ export class CPU {
             this.PC++;
             return 0;
         }
+    }
+
+    private popLogMessage() {
+        return this.logs.pop()
+    }
+
+    public logMessage(msg: string) {
+        this.logs.push(msg)
     }
 
     public getLastOpInfo() {
@@ -249,7 +265,6 @@ export class CPU {
     }
 
     public setAreg(value: number): void {
-        this.setFlags(value);
         this.Areg = value & 0xFF;
         //console.log(`Set A to ${this.Areg}`);
         //console.log(`Carry: ${Number(this.Cflag)}`);
@@ -257,12 +272,10 @@ export class CPU {
 
     public setXreg(value: number): void {
         this.Xreg = value & 0xFF;
-        this.setFlags(this.Xreg);
     }
 
     public setYreg(value: number): void {
         this.Yreg = value & 0xFF;
-        this.setFlags(this.Yreg);
     }
 
     public getAreg(): number {
@@ -370,7 +383,6 @@ export class CPU {
     public endNMI(): void {
         this.NMITriggered = false;
         this.frameCount++;
-        console.log(`frame: ${this.frameCount}`);
     }
 
     public log(message: string): void {

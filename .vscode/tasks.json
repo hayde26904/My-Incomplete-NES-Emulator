@@ -6,22 +6,5 @@
 			"type": "shell",
 			"command": "npx webpack"
 		},
-		{
-			"label": "Build Debug Server",
-			"type": "shell",
-			"command": "npx tsc -p tsconfig.server.json"
-		},
-		{
-			"label": "Build Everything",
-			"dependsOn": [
-				"Build Webpack Client",
-				"Build Debug Server"
-			],
-			"dependsOrder": "parallel",
-			"group": {
-				"kind": "build",
-				"isDefault": true
-			}
-		}
 	]
 }

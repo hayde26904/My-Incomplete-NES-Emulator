@@ -482,14 +482,14 @@ export class PPU {
             this.ctx.fillText(String(obj.paletteIndex/4), obj.x * this.outputScaleX, obj.y * this.outputScaleY);
         }*/
 
-        /*for (let i = 0; i < this.nameTables[0].getSize(); i++) {
+        for (let i = 0; i < this.nameTables[0].getSize(); i++) {
             const tileIndex = this.nameTables[0].read(i);
             const xPos = (i % 32) * 8;
             const yPos = Math.floor(i / 32) * 8;
             this.ctx.fillStyle = '#FFF';
             this.ctx.font = 'Arial 30px';
             this.ctx.fillText(Util.hex(tileIndex), xPos * this.outputScaleX, yPos * this.outputScaleY);
-        }*/
+        }
 
     }
 

@@ -1,142 +1,187 @@
 import { CPU, addrModes } from "./cpu";
-import { Memory } from "./memory";
-import { RAM } from "./ram";
 import { Util } from "./util";
 
-export type operationInfo = { log: string };
-export type operationMethod = (cpu: CPU, arg: number, addrMode?: number) => operationInfo;
+export type operationMethod = (cpu: CPU, arg: number, addrMode: number, debug: boolean) => void;
 
-export function brk(cpu: CPU, arg: number) : operationInfo {
-    return { log: "" };
-}
+export const brk: operationMethod = (cpu, arg, addrMode, debug) => {
+    if (debug) {
+        cpu.logMessage("BRK");
+    }
+};
 
-export function lda(cpu: CPU, arg: number) : operationInfo {
+export const lda: operationMethod = (cpu, arg, addrMode, debug) => {
     cpu.setAreg(arg);
-    return { log: `Loaded ${Util.hex(cpu.getAreg())} into A` };
-}
+    cpu.setFlags(arg);
+    if (debug) {
+        cpu.logMessage(`Loaded ${Util.hex(cpu.getAreg())} into A`);
+    }
+};
 
-export function ldx(cpu: CPU, arg: number) : operationInfo {
+export const ldx: operationMethod = (cpu, arg, addrMode, debug) => {
     cpu.setXreg(arg);
-    return { log: `Loaded ${Util.hex(cpu.getXreg())} into X` };
-}
+    if (debug) {
+        cpu.logMessage(`Loaded ${Util.hex(cpu.getXreg())} into X`);
+    }
+};
 
-export function ldy(cpu: CPU, arg: number) : operationInfo {
+export const ldy: operationMethod = (cpu, arg, addrMode, debug) => {
     cpu.setYreg(arg);
-    return { log: `Loaded ${Util.hex(cpu.getYreg())} into Y` };
-}
+    if (debug) {
+        cpu.logMessage(`Loaded ${Util.hex(cpu.getYreg())} into Y`);
+    }
+};
 
-export function sta(cpu: CPU, arg: number) : operationInfo {
+export const sta: operationMethod = (cpu, arg, addrMode, debug) => {
     cpu.writeToMem(cpu.getAreg(), arg);
-    return { log: `Stored ${Util.hex(cpu.getAreg())} into memory at ${Util.hex(arg)}` };
-}
+    if (debug) {
+        cpu.logMessage(`Stored ${Util.hex(cpu.getAreg())} into memory at ${Util.hex(arg)}`);
+    }
+};
 
-export function stx(cpu: CPU, arg: number) : operationInfo {
+export const stx: operationMethod = (cpu, arg, addrMode, debug) => {
     cpu.writeToMem(cpu.getXreg(), arg);
-    return { log: `Stored ${Util.hex(cpu.getXreg())} into memory at ${Util.hex(arg)}` };
-}
+    if (debug) {
+        cpu.logMessage(`Stored ${Util.hex(cpu.getXreg())} into memory at ${Util.hex(arg)}`);
+    }
+};
 
-export function sty(cpu: CPU, arg: number) : operationInfo {
+export const sty: operationMethod = (cpu, arg, addrMode, debug) => {
     cpu.writeToMem(cpu.getYreg(), arg);
-    return { log: `Stored ${Util.hex(cpu.getYreg())} into memory at ${Util.hex(arg)}` };
-}
+    if (debug) {
+        cpu.logMessage(`Stored ${Util.hex(cpu.getYreg())} into memory at ${Util.hex(arg)}`);
+    }
+};
 
-export function tax(cpu: CPU, arg: number) : operationInfo {
+export const tax: operationMethod = (cpu, arg, addrMode, debug) => {
     cpu.setXreg(cpu.getAreg());
-    return { log: `Transfered A ${Util.hex(cpu.getAreg())} into X` };
-}
+    if (debug) {
+        cpu.logMessage(`Transfered A ${Util.hex(cpu.getAreg())} into X`);
+    }
+};
 
-export function txa(cpu: CPU, arg: number) : operationInfo {
+export const txa: operationMethod = (cpu, arg, addrMode, debug) => {
     cpu.setAreg(cpu.getXreg());
-    return { log: `Transfered X ${Util.hex(cpu.getXreg())} into A` };
-}
+    cpu.setFlags(cpu.getXreg());
+    if (debug) {
+        cpu.logMessage(`Transfered X ${Util.hex(cpu.getXreg())} into A`);
+    }
+};
 
-export function tay(cpu: CPU, arg: number) : operationInfo {
+export const tay: operationMethod = (cpu, arg, addrMode, debug) => {
     cpu.setYreg(cpu.getAreg());
-    return { log: `Transfered A ${Util.hex(cpu.getAreg())} into Y` };
-}
+    if (debug) {
+        cpu.logMessage(`Transfered A ${Util.hex(cpu.getAreg())} into Y`);
+    }
+};
 
-export function tya(cpu: CPU, arg: number) : operationInfo {
+export const tya: operationMethod = (cpu, arg, addrMode, debug) => {
     cpu.setAreg(cpu.getYreg());
-    return { log: `Transfered Y ${Util.hex(cpu.getYreg())} into A` };
-}
+    cpu.setFlags(cpu.getYreg());
+    if (debug) {
+        cpu.logMessage(`Transfered Y ${Util.hex(cpu.getYreg())} into A`);
+    }
+};
 
-export function txs(cpu: CPU, arg: number) : operationInfo {
+export const txs: operationMethod = (cpu, arg, addrMode, debug) => {
     cpu.setSP(cpu.getXreg());
-    return { log: `Stored X ${cpu.getXreg()} into stack pointer` };
-}
+    if (debug) {
+        cpu.logMessage(`Stored X ${cpu.getXreg()} into stack pointer`);
+    }
+};
 
-export function tsx(cpu: CPU, arg: number) : operationInfo {
+export const tsx: operationMethod = (cpu, arg, addrMode, debug) => {
     cpu.setXreg(cpu.getSP());
-    return { log: `Stored SP ${cpu.getSP()} into X` };
-}
+    cpu.setFlags(cpu.getSP());
+    if (debug) {
+        cpu.logMessage(`Stored SP ${cpu.getSP()} into X`);
+    }
+};
 
-export function inc(cpu: CPU, arg: number) : operationInfo {
+export const inc: operationMethod = (cpu, arg, addrMode, debug) => {
     const result = cpu.readFromMem(arg) + 1;
     cpu.writeToMem(result, arg);
     cpu.setFlags(result);
-    return { log: `Incremented ${arg}` };
-}
+    if (debug) {
+        cpu.logMessage(`Incremented ${arg}`);
+    }
+};
 
-export function dec(cpu: CPU, arg: number) : operationInfo {
+export const dec: operationMethod = (cpu, arg, addrMode, debug) => {
     const result = cpu.readFromMem(arg) - 1;
     cpu.writeToMem(result, arg);
     cpu.setFlags(result);
-    return { log: `Decremented ${arg}` };
-}
+    if (debug) {
+        cpu.logMessage(`Decremented ${arg}`);
+    }
+};
 
-export function inx(cpu: CPU, arg: number) : operationInfo {
+export const inx: operationMethod = (cpu, arg, addrMode, debug) => {
     let val = cpu.getXreg() + 1;
     cpu.setXreg(val);
     cpu.setFlags(val);
-    return { log: `Incremented X` };
-}
+    if (debug) {
+        cpu.logMessage(`Incremented X`);
+    }
+};
 
-export function dex(cpu: CPU, arg: number) : operationInfo {
+export const dex: operationMethod = (cpu, arg, addrMode, debug) => {
     let val = cpu.getXreg() - 1;
     cpu.setXreg(val);
     cpu.setFlags(val);
-    return { log: `Decremented X` };
-}
+    if (debug) {
+        cpu.logMessage(`Decremented X`);
+    }
+};
 
-export function iny(cpu: CPU, arg: number) : operationInfo {
+export const iny: operationMethod = (cpu, arg, addrMode, debug) => {
     let val = cpu.getYreg() + 1;
     cpu.setYreg(val);
     cpu.setFlags(val);
-    return { log: `Incremented Y` };
-}
+    if (debug) {
+        cpu.logMessage(`Incremented Y`);
+    }
+};
 
-export function dey(cpu: CPU, arg: number) : operationInfo {
+export const dey: operationMethod = (cpu, arg, addrMode, debug) => {
     let val = cpu.getYreg() - 1;
     cpu.setYreg(val);
     cpu.setFlags(val);
-    return { log: `Decremented Y` };
-}
+    if (debug) {
+        cpu.logMessage(`Decremented Y`);
+    }
+};
 
-export function jmp(cpu: CPU, arg: number) : operationInfo {
+export const jmp: operationMethod = (cpu, arg, addrMode, debug) => {
     cpu.setPC(arg);
-    return { log: `Jumped to ${Util.hex(arg)}` };
-}
+    if (debug) {
+        cpu.logMessage(`Jumped to ${Util.hex(arg)}`);
+    }
+};
 
-export function jsr(cpu: CPU, arg: number) : operationInfo {
+export const jsr: operationMethod = (cpu, arg, addrMode, debug) => {
     let from = cpu.getPC() - 1;
     let [lo, hi] = Util.addrToBytes(from);
 
     cpu.pushToStack(hi);
     cpu.pushToStack(lo);
     cpu.setPC(arg);
-    return { log: `Jumped to subroutine ${Util.hex(arg)} from ${Util.hex(Util.bytesToAddr(lo, hi))}` };
-}
+    if (debug) {
+        cpu.logMessage(`Jumped to subroutine ${Util.hex(arg)} from ${Util.hex(Util.bytesToAddr(lo, hi))}`);
+    }
+};
 
-export function rts(cpu: CPU, arg: number) : operationInfo {
+export const rts: operationMethod = (cpu, arg, addrMode, debug) => {
     let lo = cpu.pullFromStack();
     let hi = cpu.pullFromStack();
     let returnAddr = Util.bytesToAddr(lo, hi) + 1;
 
     cpu.setPC(returnAddr);
-    return { log: `Returned from subroutine to ${Util.hex(returnAddr)}` };
-}
+    if (debug) {
+        cpu.logMessage(`Returned from subroutine to ${Util.hex(returnAddr)}`);
+    }
+};
 
-export function rti(cpu: CPU, arg: number) : operationInfo {
+export const rti: operationMethod = (cpu, arg, addrMode, debug) => {
 
     let lo = cpu.pullFromStack();
     let hi = cpu.pullFromStack();
@@ -146,20 +191,26 @@ export function rti(cpu: CPU, arg: number) : operationInfo {
     cpu.setStatusReg(statusReg);
     cpu.setPC(returnAddr);
     cpu.endNMI();
-    return { log: `Returned from interrupt to ${Util.hex(returnAddr)}` };
-}
+    if (debug) {
+        cpu.logMessage(`Returned from interrupt to ${Util.hex(returnAddr)}`);
+    }
+};
 
-export function sec(cpu: CPU, arg: number) : operationInfo {
+export const sec: operationMethod = (cpu, arg, addrMode, debug) => {
     cpu.setCarry();
-    return { log: `Set Carry` };
-}
+    if (debug) {
+        cpu.logMessage(`Set Carry`);
+    }
+};
 
-export function clc(cpu: CPU, arg: number) : operationInfo {
+export const clc: operationMethod = (cpu, arg, addrMode, debug) => {
     cpu.clearCarry();
-    return { log: `Cleared Carry` };
-}
+    if (debug) {
+        cpu.logMessage(`Cleared Carry`);
+    }
+};
 
-export function adc(cpu: CPU, arg: number) : operationInfo {
+export const adc: operationMethod = (cpu, arg, addrMode, debug) => {
     let c = Number(cpu.getFlags().C);
     let a = cpu.getAreg();
     let result = a + arg + c;
@@ -179,10 +230,13 @@ export function adc(cpu: CPU, arg: number) : operationInfo {
     }
     
     cpu.setAreg(result);
-    return { log: `Added ${arg} to A` };
-}
+    cpu.setFlags(result);
+    if (debug) {
+        cpu.logMessage(`Added ${arg} to A`);
+    }
+};
 
-export function sbc(cpu: CPU, arg: number) : operationInfo {
+export const sbc: operationMethod = (cpu, arg, addrMode, debug) => {
     let c = Number(!cpu.getFlags().C);
     let a = cpu.getAreg();
     let result = a - arg - c;
@@ -202,10 +256,13 @@ export function sbc(cpu: CPU, arg: number) : operationInfo {
     }
     
     cpu.setAreg(result);
-    return { log: `Subtracted ${arg} from A` };
-}
+    cpu.setFlags(result);
+    if (debug) {
+        cpu.logMessage(`Subtracted ${arg} from A`);
+    }
+};
 
-export function cmp(cpu: CPU, arg: number) : operationInfo {
+export const cmp: operationMethod = (cpu, arg, addrMode, debug) => {
     let result = cpu.getAreg() - arg;
     cpu.setFlags(result);
 
@@ -214,10 +271,12 @@ export function cmp(cpu: CPU, arg: number) : operationInfo {
     } else {
         cpu.setCarry();
     }
-    return { log: `Compared A (${Util.hex(cpu.getAreg())}) to ${Util.hex(arg)}` };
-}
+    if (debug) {
+        cpu.logMessage(`Compared A (${Util.hex(cpu.getAreg())}) to ${Util.hex(arg)}`);
+    }
+};
 
-export function cpx(cpu: CPU, arg: number) : operationInfo {
+export const cpx: operationMethod = (cpu, arg, addrMode, debug) => {
     let result = cpu.getXreg() - arg;
     cpu.setFlags(result);
 
@@ -226,10 +285,12 @@ export function cpx(cpu: CPU, arg: number) : operationInfo {
     } else {
         cpu.setCarry();
     }
-    return { log: `Compared X (${Util.hex(cpu.getAreg())}) to ${Util.hex(arg)}` };
-}
+    if (debug) {
+        cpu.logMessage(`Compared X (${Util.hex(cpu.getAreg())}) to ${Util.hex(arg)}`);
+    }
+};
 
-export function cpy(cpu: CPU, arg: number) : operationInfo {
+export const cpy: operationMethod = (cpu, arg, addrMode, debug) => {
     let result = cpu.getYreg() - arg;
     cpu.setFlags(result);
 
@@ -238,101 +299,132 @@ export function cpy(cpu: CPU, arg: number) : operationInfo {
     } else {
         cpu.setCarry();
     }
-    return { log: `Compared Y (${Util.hex(cpu.getYreg())}) to ${Util.hex(arg)}` };
-}
+    if (debug) {
+        cpu.logMessage(`Compared Y (${Util.hex(cpu.getYreg())}) to ${Util.hex(arg)}`);
+    }
+};
 
-export function bit(cpu: CPU, arg: number) : operationInfo {
+export const bit: operationMethod = (cpu, arg, addrMode, debug) => {
     let result = cpu.getAreg() & arg;
     cpu.setFlags(result);
     if((arg & 0x80) === 0x80) cpu.setNegative(); else cpu.clearNegative();
     if((arg & 0x40) === 0x40) cpu.setOverflow(); else cpu.clearOverflow();
-    return { log: `BIT with ${Util.hex(arg)}` };
-}
+    if (debug) {
+        cpu.logMessage(`BIT with ${Util.hex(arg)}`);
+    }
+};
 
-export function beq(cpu: CPU, arg: number) : operationInfo {
+export const beq: operationMethod = (cpu, arg, addrMode, debug) => {
     if(cpu.getFlags().Z){
         cpu.setPC(arg);
     }
-    return { log: `Branch if equal (${Util.hex(arg)})` };
-}
+    if (debug) {
+        cpu.logMessage(`Branch if equal (${Util.hex(arg)})`);
+    }
+};
 
-export function bne(cpu: CPU, arg: number) : operationInfo {
+export const bne: operationMethod = (cpu, arg, addrMode, debug) => {
     if(!cpu.getFlags().Z){
         cpu.setPC(arg);
     }
-    return { log: `Branch if not equal (${Util.hex(arg)})` };
-}
+    if (debug) {
+        cpu.logMessage(`Branch if not equal (${Util.hex(arg)})`);
+    }
+};
 
-export function bcc(cpu: CPU, arg: number) : operationInfo {
+export const bcc: operationMethod = (cpu, arg, addrMode, debug) => {
     if(!cpu.getFlags().C){
         cpu.setPC(arg);
     }
-    return { log: `Branch if carry clear (${Util.hex(arg)})` };
-}
+    if (debug) {
+        cpu.logMessage(`Branch if carry clear (${Util.hex(arg)})`);
+    }
+};
 
-export function bcs(cpu: CPU, arg: number) : operationInfo {
+export const bcs: operationMethod = (cpu, arg, addrMode, debug) => {
     if(cpu.getFlags().C){
         cpu.setPC(arg);
     }
-    return { log: `Branch if carry set (${Util.hex(arg)})` };
-}
+    if (debug) {
+        cpu.logMessage(`Branch if carry set (${Util.hex(arg)})`);
+    }
+};
 
-export function bmi(cpu: CPU, arg: number) : operationInfo {
+export const bmi: operationMethod = (cpu, arg, addrMode, debug) => {
     if(cpu.getFlags().N){
         cpu.setPC(arg);
     }
-    return { log: `Branch if negative (${Util.hex(arg)})` };
-}
+    if (debug) {
+        cpu.logMessage(`Branch if negative (${Util.hex(arg)})`);
+    }
+};
 
-export function bpl(cpu: CPU, arg: number) : operationInfo {
+export const bpl: operationMethod = (cpu, arg, addrMode, debug) => {
     if(!cpu.getFlags().N){
         cpu.setPC(arg);
     }
-    return { log: `Branch if not negative (${Util.hex(arg)})` };
-}
+    if (debug) {
+        cpu.logMessage(`Branch if not negative (${Util.hex(arg)})`);
+    }
+};
 
-export function and(cpu: CPU, arg: number) : operationInfo {
+export const and: operationMethod = (cpu, arg, addrMode, debug) => {
     const result = cpu.getAreg() & arg;
     cpu.setAreg(result);
     cpu.setFlags(result);
-    return { log: `AND ${arg} with A` };
-}
+    if (debug) {
+        cpu.logMessage(`AND ${arg} with A`);
+    }
+};
 
-export function ora(cpu: CPU, arg: number) : operationInfo {
+export const ora: operationMethod = (cpu, arg, addrMode, debug) => {
     const result = cpu.getAreg() | arg;
     cpu.setAreg(result);
     cpu.setFlags(result);
-    return { log: `OR ${arg} with A` };
-}
+    if (debug) {
+        cpu.logMessage(`OR ${arg} with A`);
+    }
+};
 
-export function eor(cpu: CPU, arg: number) : operationInfo {
+export const eor: operationMethod = (cpu, arg, addrMode, debug) => {
     const result = cpu.getAreg() ^ arg;
     cpu.setAreg(result);
     cpu.setFlags(result);
-    return { log: `EOR ${arg} with A` };
-}
+    if (debug) {
+        cpu.logMessage(`EOR ${arg} with A`);
+    }
+};
 
-export function pha(cpu: CPU, arg: number) : operationInfo {
+export const pha: operationMethod = (cpu, arg, addrMode, debug) => {
     cpu.pushToStack(cpu.getAreg());
-    return { log: `Pushed A to stack` };
-}
+    if (debug) {
+        cpu.logMessage(`Pushed A to stack`);
+    }
+};
 
-export function pla(cpu: CPU, arg: number) : operationInfo {
+export const pla: operationMethod = (cpu, arg, addrMode, debug) => {
     cpu.setAreg(cpu.pullFromStack());
-    return { log: `Pulled A from stack` };
-}
+    cpu.setFlags(cpu.getAreg());
+    if (debug) {
+        cpu.logMessage(`Pulled A from stack`);
+    }
+};
 
-export function php(cpu: CPU, arg: number) : operationInfo {
+export const php: operationMethod = (cpu, arg, addrMode, debug) => {
     cpu.pushToStack(cpu.getStatusReg());
-    return { log: `Pushed Status Reg to stack` };
-}
+    if (debug) {
+        cpu.logMessage(`Pushed Status Reg to stack`);
+    }
+};
 
-export function plp(cpu: CPU, arg: number) : operationInfo {
+export const plp: operationMethod = (cpu, arg, addrMode, debug) => {
     cpu.setStatusReg(cpu.pullFromStack());
-    return { log: `Pulled Status Reg from stack` };
-}
+    if (debug) {
+        cpu.logMessage(`Pulled Status Reg from stack`);
+    }
+};
 
-export function asl(cpu: CPU, arg: number, addrMode?: number) : operationInfo {
+export const asl: operationMethod = (cpu, arg, addrMode, debug) => {
     let result = (arg << 1) & 0xFF;
 
     if (addrMode === addrModes.ACCUMULATOR) { // Accumulator mode
@@ -349,10 +441,12 @@ export function asl(cpu: CPU, arg: number, addrMode?: number) : operationInfo {
         cpu.clearCarry();
     }
 
-    return { log: `ASL on A ${Util.hex(arg)}` };
-}
+    if (debug) {
+        cpu.logMessage(`ASL on A ${Util.hex(arg)}`);
+    }
+};
 
-export function lsr(cpu: CPU, arg: number, addrMode?: number) : operationInfo {
+export const lsr: operationMethod = (cpu, arg, addrMode, debug) => {
     let result = (arg >> 1) & 0xFF;
 
     if (addrMode === addrModes.ACCUMULATOR) { // Accumulator mode
@@ -369,10 +463,12 @@ export function lsr(cpu: CPU, arg: number, addrMode?: number) : operationInfo {
         cpu.clearCarry();
     }
 
-    return { log: `LSR on A ${Util.hex(arg)}` };
-}
+    if (debug) {
+        cpu.logMessage(`LSR on A ${Util.hex(arg)}`);
+    }
+};
 
-export function ror(cpu: CPU, arg: number, addrMode?: number) : operationInfo {
+export const ror: operationMethod = (cpu, arg, addrMode, debug) => {
     let c = Number(cpu.getFlags().C);
     let result = ((arg >> 1) & 0xFF) | ((c << 7) & 0x80);
 
@@ -390,11 +486,30 @@ export function ror(cpu: CPU, arg: number, addrMode?: number) : operationInfo {
         cpu.clearCarry();
     }
 
-    return { log: `ROR on A ${Util.hex(arg)}` };
-}
+    if (debug) {
+        cpu.logMessage(`ROR on A ${Util.hex(arg)}`);
+    }
+};
 
-export function rol(cpu: CPU, arg: number, addrMode?: number) : operationInfo {
-    asl(cpu, arg, addrMode);
-    and(cpu, arg);
-    return { log: `RLA on A ${Util.hex(arg)}` };
-}
+export const rol: operationMethod = (cpu, arg, addrMode, debug) => {
+    let c = Number(cpu.getFlags().C);
+    let result = ((arg << 1) & 0xFF) | c;
+
+    if (addrMode === addrModes.ACCUMULATOR) { // Accumulator mode
+        cpu.setAreg(result);
+    } else {
+        cpu.writeToMem(result, arg);
+    }
+
+    cpu.setFlags(result);
+
+    if ((result & 0x80) === 0x80) {
+        cpu.setCarry();
+    } else {
+        cpu.clearCarry();
+    }
+
+    if (debug) {
+        cpu.logMessage(`ROL on A ${Util.hex(arg)}`);
+    }
+};

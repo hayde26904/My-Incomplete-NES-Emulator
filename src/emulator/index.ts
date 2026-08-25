@@ -1,4 +1,4 @@
-import { CPU } from './cpu';
+import { CPU, OpExecutionInfo } from './cpu';
 import { PPU } from './ppu';
 import { ROM } from './rom';
 import * as headerParser from "./headerParser";
@@ -7,7 +7,6 @@ import { Util } from './util';
 import { Bus } from './bus';
 import { Mapper } from './mapper';
 import { mapperMap } from './mapperMap';
-import { EmulatorEvent, OpExecutionInfo } from '../shared/debug-types';
 
 const TARGET_FPS = 60
 
@@ -61,50 +60,6 @@ document.getElementById('log-var-btn')?.addEventListener('click', () => {
   console.log(eval(val)); // eval is generally bad but this is just for debugging so its fine
 });
 
-
-let debugServerConnected = false;
-
-document.getElementById('connect-server-btn')?.addEventListener('click', () => {
-  if (debugServerConnected) return;
-
-  const socket = new WebSocket(DEBUG_SERVER_URL);
-
-  socket.addEventListener("open", () => {
-    debugServerConnected = true;
-    pause();
-  });
-
-  socket.addEventListener("message", (event) => {
-    const message = event.data;
-
-    switch (message) {
-      case "reset":
-
-
-
-        break;
-      case "step":
-
-        executeNextOperation();
-
-        const lastOpInfo: OpExecutionInfo = cpu.getLastOpInfo();
-
-        // if connected to debug server
-        if (socket !== null) {
-          const event: EmulatorEvent = {
-            event: "step",
-            data: lastOpInfo
-          }
-
-          socket.send(JSON.stringify(event));
-        }
-
-        break;
-    }
-
-  });
-
-});
 
 const breakpointInput = document.getElementById('breakpoint-addr-input') as HTMLInputElement;
 breakpointInput.addEventListener('change', () => {
@@ -174,7 +129,6 @@ function pause() {
 }
 
 function resume() {
-  if (debugServerConnected) return // Under no circumstances should emulation be unpaused while server connected. It will send messages at an extreme rate.
   cpuPaused = false;
   document.getElementById('pause-btn')!.textContent = "Pause";
 }
@@ -182,6 +136,11 @@ function resume() {
 pause();
 
 let cycleCount = 0;
+let frameCount = 0;
+
+const dumpFrames = 2;
+
+let frameLog = "MINE\n";
 
 function loop() {
 
@@ -196,8 +155,16 @@ function loop() {
 
   while (cycleCount < CYCLES_PER_FRAME && !cpuPaused) {
     const cyclesExecuted = executeNextOperation();
+    const opInfo = cpu.getLastOpInfo();
+    if (frameCount <= dumpFrames) frameLog += `PC: ${opInfo.PC}  OP: ${opInfo.opCode}\n`;
     cycleCount += cyclesExecuted;
   }
+
+  if (frameCount <= dumpFrames) {
+      console.log(frameLog);
+  }
+
+  if (!cpuPaused) frameCount++;
 
   cycleCount = 0;
 
@@ -211,11 +178,11 @@ function loop() {
 }
 
 // wrapper for CPU function to include PPU ticks and breakpoint functionality
-function executeNextOperation(log: boolean = false) {
+function executeNextOperation(debug: boolean = false) {
 
   //console.log(`FRAME START  PC: ${Util.hex(cpu.getPC())}`);
 
-  const cycles = cpu.executeNextOperation(log);
+  const cycles = cpu.executeNextOperation(debug);
 
   for (let i = 0; i < cycles * 3; i++) {
     ppu.tick();
@@ -224,6 +191,14 @@ function executeNextOperation(log: boolean = false) {
   if (breakpoint !== null && cpu.getPC() === breakpoint) {
     console.log(`Hit breakpoint at ${Util.hex(breakpoint)}!`);
     pause();
+  }
+
+  if (debug) {
+    const opInfo: OpExecutionInfo = cpu.getLastOpInfo();
+    const logMessage = 
+    "[DEBUG] PC: " + Util.hex(opInfo.PC) + " | OpCode: " + Util.hex(opInfo.opCode) + " | A: " + Util.hex(opInfo.A) + " | X: " + Util.hex(opInfo.X) + " | Y: " + Util.hex(opInfo.Y) + " | SP: " + Util.hex(opInfo.SP) + " | Status: " + Util.hex(opInfo.status) + "\n" +
+    (opInfo.opLog || "");
+    console.log(logMessage);
   }
 
   return cycles;
