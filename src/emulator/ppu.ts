@@ -185,7 +185,7 @@ export class PPU {
             this.cycle = 0;
             this.scanline++;
 
-            if (this.scanline === 240) { // VBLANK START
+            if (this.scanline === 241) { // VBLANK START
                 this.inVblank = true;
                 this.draw(); // not accurate but works for now 
                 this.NMI();

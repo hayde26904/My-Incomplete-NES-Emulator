@@ -251,12 +251,12 @@ export class CPU {
             if (debug) this.lastOpInfo.opLog = this.popLogMessage(); // pop the log message after execution
 
             let cycles = opCycles;
-            
+
             // something's up with this. Makes the barrel RNG weird in DK
-            /*if (this.pageCrossed && operation.pageCrossPenalty) {
+            if (this.pageCrossed && operation.pageCrossPenalty) {
                 cycles += 1;
             }
-            cycles += extraCycles;*/
+            cycles += extraCycles;
 
 
             return cycles;
