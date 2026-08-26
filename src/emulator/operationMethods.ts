@@ -1,12 +1,13 @@
 import { CPU, addrModes } from "./cpu";
 import { Util } from "./util";
 
-export type operationMethod = (cpu: CPU, arg: number, addrMode: number, debug: boolean) => void;
+export type operationMethod = (cpu: CPU, arg: number, addrMode: number, debug: boolean) => number;
 
 export const brk: operationMethod = (cpu, arg, addrMode, debug) => {
     if (debug) {
         cpu.logMessage("BRK");
     }
+    return 0;
 };
 
 export const lda: operationMethod = (cpu, arg, addrMode, debug) => {
@@ -15,20 +16,25 @@ export const lda: operationMethod = (cpu, arg, addrMode, debug) => {
     if (debug) {
         cpu.logMessage(`Loaded ${Util.hex(cpu.getAreg())} into A`);
     }
+    return 0;
 };
 
 export const ldx: operationMethod = (cpu, arg, addrMode, debug) => {
     cpu.setXreg(arg);
+    cpu.setFlags(arg);
     if (debug) {
         cpu.logMessage(`Loaded ${Util.hex(cpu.getXreg())} into X`);
     }
+    return 0;
 };
 
 export const ldy: operationMethod = (cpu, arg, addrMode, debug) => {
     cpu.setYreg(arg);
+    cpu.setFlags(arg);
     if (debug) {
         cpu.logMessage(`Loaded ${Util.hex(cpu.getYreg())} into Y`);
     }
+    return 0;
 };
 
 export const sta: operationMethod = (cpu, arg, addrMode, debug) => {
@@ -36,6 +42,7 @@ export const sta: operationMethod = (cpu, arg, addrMode, debug) => {
     if (debug) {
         cpu.logMessage(`Stored ${Util.hex(cpu.getAreg())} into memory at ${Util.hex(arg)}`);
     }
+    return 0;
 };
 
 export const stx: operationMethod = (cpu, arg, addrMode, debug) => {
@@ -43,6 +50,7 @@ export const stx: operationMethod = (cpu, arg, addrMode, debug) => {
     if (debug) {
         cpu.logMessage(`Stored ${Util.hex(cpu.getXreg())} into memory at ${Util.hex(arg)}`);
     }
+    return 0;
 };
 
 export const sty: operationMethod = (cpu, arg, addrMode, debug) => {
@@ -50,13 +58,16 @@ export const sty: operationMethod = (cpu, arg, addrMode, debug) => {
     if (debug) {
         cpu.logMessage(`Stored ${Util.hex(cpu.getYreg())} into memory at ${Util.hex(arg)}`);
     }
+    return 0;
 };
 
 export const tax: operationMethod = (cpu, arg, addrMode, debug) => {
     cpu.setXreg(cpu.getAreg());
+    cpu.setFlags(cpu.getXreg());
     if (debug) {
         cpu.logMessage(`Transfered A ${Util.hex(cpu.getAreg())} into X`);
     }
+    return 0;
 };
 
 export const txa: operationMethod = (cpu, arg, addrMode, debug) => {
@@ -65,13 +76,16 @@ export const txa: operationMethod = (cpu, arg, addrMode, debug) => {
     if (debug) {
         cpu.logMessage(`Transfered X ${Util.hex(cpu.getXreg())} into A`);
     }
+    return 0;
 };
 
 export const tay: operationMethod = (cpu, arg, addrMode, debug) => {
     cpu.setYreg(cpu.getAreg());
+    cpu.setFlags(cpu.getAreg());
     if (debug) {
         cpu.logMessage(`Transfered A ${Util.hex(cpu.getAreg())} into Y`);
     }
+    return 0;
 };
 
 export const tya: operationMethod = (cpu, arg, addrMode, debug) => {
@@ -80,6 +94,7 @@ export const tya: operationMethod = (cpu, arg, addrMode, debug) => {
     if (debug) {
         cpu.logMessage(`Transfered Y ${Util.hex(cpu.getYreg())} into A`);
     }
+    return 0;
 };
 
 export const txs: operationMethod = (cpu, arg, addrMode, debug) => {
@@ -87,6 +102,7 @@ export const txs: operationMethod = (cpu, arg, addrMode, debug) => {
     if (debug) {
         cpu.logMessage(`Stored X ${cpu.getXreg()} into stack pointer`);
     }
+    return 0;
 };
 
 export const tsx: operationMethod = (cpu, arg, addrMode, debug) => {
@@ -95,6 +111,7 @@ export const tsx: operationMethod = (cpu, arg, addrMode, debug) => {
     if (debug) {
         cpu.logMessage(`Stored SP ${cpu.getSP()} into X`);
     }
+    return 0;
 };
 
 export const inc: operationMethod = (cpu, arg, addrMode, debug) => {
@@ -104,6 +121,7 @@ export const inc: operationMethod = (cpu, arg, addrMode, debug) => {
     if (debug) {
         cpu.logMessage(`Incremented ${arg}`);
     }
+    return 0;
 };
 
 export const dec: operationMethod = (cpu, arg, addrMode, debug) => {
@@ -113,6 +131,7 @@ export const dec: operationMethod = (cpu, arg, addrMode, debug) => {
     if (debug) {
         cpu.logMessage(`Decremented ${arg}`);
     }
+    return 0;
 };
 
 export const inx: operationMethod = (cpu, arg, addrMode, debug) => {
@@ -122,6 +141,7 @@ export const inx: operationMethod = (cpu, arg, addrMode, debug) => {
     if (debug) {
         cpu.logMessage(`Incremented X`);
     }
+    return 0;
 };
 
 export const dex: operationMethod = (cpu, arg, addrMode, debug) => {
@@ -131,6 +151,7 @@ export const dex: operationMethod = (cpu, arg, addrMode, debug) => {
     if (debug) {
         cpu.logMessage(`Decremented X`);
     }
+    return 0;
 };
 
 export const iny: operationMethod = (cpu, arg, addrMode, debug) => {
@@ -140,6 +161,7 @@ export const iny: operationMethod = (cpu, arg, addrMode, debug) => {
     if (debug) {
         cpu.logMessage(`Incremented Y`);
     }
+    return 0;
 };
 
 export const dey: operationMethod = (cpu, arg, addrMode, debug) => {
@@ -149,6 +171,7 @@ export const dey: operationMethod = (cpu, arg, addrMode, debug) => {
     if (debug) {
         cpu.logMessage(`Decremented Y`);
     }
+    return 0;
 };
 
 export const jmp: operationMethod = (cpu, arg, addrMode, debug) => {
@@ -156,6 +179,7 @@ export const jmp: operationMethod = (cpu, arg, addrMode, debug) => {
     if (debug) {
         cpu.logMessage(`Jumped to ${Util.hex(arg)}`);
     }
+    return 0;
 };
 
 export const jsr: operationMethod = (cpu, arg, addrMode, debug) => {
@@ -168,6 +192,7 @@ export const jsr: operationMethod = (cpu, arg, addrMode, debug) => {
     if (debug) {
         cpu.logMessage(`Jumped to subroutine ${Util.hex(arg)} from ${Util.hex(Util.bytesToAddr(lo, hi))}`);
     }
+    return 0;
 };
 
 export const rts: operationMethod = (cpu, arg, addrMode, debug) => {
@@ -179,6 +204,7 @@ export const rts: operationMethod = (cpu, arg, addrMode, debug) => {
     if (debug) {
         cpu.logMessage(`Returned from subroutine to ${Util.hex(returnAddr)}`);
     }
+    return 0;
 };
 
 export const rti: operationMethod = (cpu, arg, addrMode, debug) => {
@@ -194,6 +220,7 @@ export const rti: operationMethod = (cpu, arg, addrMode, debug) => {
     if (debug) {
         cpu.logMessage(`Returned from interrupt to ${Util.hex(returnAddr)}`);
     }
+    return 0;
 };
 
 export const sec: operationMethod = (cpu, arg, addrMode, debug) => {
@@ -201,6 +228,7 @@ export const sec: operationMethod = (cpu, arg, addrMode, debug) => {
     if (debug) {
         cpu.logMessage(`Set Carry`);
     }
+    return 0;
 };
 
 export const clc: operationMethod = (cpu, arg, addrMode, debug) => {
@@ -208,6 +236,7 @@ export const clc: operationMethod = (cpu, arg, addrMode, debug) => {
     if (debug) {
         cpu.logMessage(`Cleared Carry`);
     }
+    return 0;
 };
 
 export const adc: operationMethod = (cpu, arg, addrMode, debug) => {
@@ -234,6 +263,7 @@ export const adc: operationMethod = (cpu, arg, addrMode, debug) => {
     if (debug) {
         cpu.logMessage(`Added ${arg} to A`);
     }
+    return 0;
 };
 
 export const sbc: operationMethod = (cpu, arg, addrMode, debug) => {
@@ -260,6 +290,7 @@ export const sbc: operationMethod = (cpu, arg, addrMode, debug) => {
     if (debug) {
         cpu.logMessage(`Subtracted ${arg} from A`);
     }
+    return 0;
 };
 
 export const cmp: operationMethod = (cpu, arg, addrMode, debug) => {
@@ -274,6 +305,7 @@ export const cmp: operationMethod = (cpu, arg, addrMode, debug) => {
     if (debug) {
         cpu.logMessage(`Compared A (${Util.hex(cpu.getAreg())}) to ${Util.hex(arg)}`);
     }
+    return 0;
 };
 
 export const cpx: operationMethod = (cpu, arg, addrMode, debug) => {
@@ -286,8 +318,9 @@ export const cpx: operationMethod = (cpu, arg, addrMode, debug) => {
         cpu.setCarry();
     }
     if (debug) {
-        cpu.logMessage(`Compared X (${Util.hex(cpu.getAreg())}) to ${Util.hex(arg)}`);
+        cpu.logMessage(`Compared X (${Util.hex(cpu.getXreg())}) to ${Util.hex(arg)}`);
     }
+    return 0;
 };
 
 export const cpy: operationMethod = (cpu, arg, addrMode, debug) => {
@@ -302,6 +335,7 @@ export const cpy: operationMethod = (cpu, arg, addrMode, debug) => {
     if (debug) {
         cpu.logMessage(`Compared Y (${Util.hex(cpu.getYreg())}) to ${Util.hex(arg)}`);
     }
+    return 0;
 };
 
 export const bit: operationMethod = (cpu, arg, addrMode, debug) => {
@@ -312,60 +346,81 @@ export const bit: operationMethod = (cpu, arg, addrMode, debug) => {
     if (debug) {
         cpu.logMessage(`BIT with ${Util.hex(arg)}`);
     }
+    return 0;
 };
 
 export const beq: operationMethod = (cpu, arg, addrMode, debug) => {
+    let extraCycles = 0;
     if(cpu.getFlags().Z){
         cpu.setPC(arg);
+        extraCycles = 1;
     }
+
     if (debug) {
         cpu.logMessage(`Branch if equal (${Util.hex(arg)})`);
     }
+    
+    return extraCycles;
 };
 
 export const bne: operationMethod = (cpu, arg, addrMode, debug) => {
+    let extraCycles = 0;
     if(!cpu.getFlags().Z){
         cpu.setPC(arg);
+        extraCycles = 1;
     }
     if (debug) {
         cpu.logMessage(`Branch if not equal (${Util.hex(arg)})`);
     }
+    return extraCycles;
 };
 
 export const bcc: operationMethod = (cpu, arg, addrMode, debug) => {
+    let extraCycles = 0;
     if(!cpu.getFlags().C){
         cpu.setPC(arg);
+        extraCycles = 1;
     }
     if (debug) {
         cpu.logMessage(`Branch if carry clear (${Util.hex(arg)})`);
     }
+    return extraCycles;
 };
 
 export const bcs: operationMethod = (cpu, arg, addrMode, debug) => {
+    let extraCycles = 0;
     if(cpu.getFlags().C){
         cpu.setPC(arg);
+        extraCycles = 1;
     }
     if (debug) {
         cpu.logMessage(`Branch if carry set (${Util.hex(arg)})`);
     }
+    return extraCycles;
 };
 
 export const bmi: operationMethod = (cpu, arg, addrMode, debug) => {
+    let extraCycles = 0;
     if(cpu.getFlags().N){
         cpu.setPC(arg);
+        extraCycles = 1;
     }
     if (debug) {
         cpu.logMessage(`Branch if negative (${Util.hex(arg)})`);
     }
+    return extraCycles;
 };
 
 export const bpl: operationMethod = (cpu, arg, addrMode, debug) => {
+    let extraCycles = 0;
     if(!cpu.getFlags().N){
         cpu.setPC(arg);
+        extraCycles = 1;
     }
     if (debug) {
         cpu.logMessage(`Branch if not negative (${Util.hex(arg)})`);
     }
+    return extraCycles;
 };
 
 export const and: operationMethod = (cpu, arg, addrMode, debug) => {
@@ -375,6 +430,8 @@ export const and: operationMethod = (cpu, arg, addrMode, debug) => {
     if (debug) {
         cpu.logMessage(`AND ${arg} with A`);
     }
+
+    return 0;
 };
 
 export const ora: operationMethod = (cpu, arg, addrMode, debug) => {
@@ -384,6 +441,8 @@ export const ora: operationMethod = (cpu, arg, addrMode, debug) => {
     if (debug) {
         cpu.logMessage(`OR ${arg} with A`);
     }
+
+    return 0;
 };
 
 export const eor: operationMethod = (cpu, arg, addrMode, debug) => {
@@ -393,6 +452,8 @@ export const eor: operationMethod = (cpu, arg, addrMode, debug) => {
     if (debug) {
         cpu.logMessage(`EOR ${arg} with A`);
     }
+
+    return 0;
 };
 
 export const pha: operationMethod = (cpu, arg, addrMode, debug) => {
@@ -400,6 +461,8 @@ export const pha: operationMethod = (cpu, arg, addrMode, debug) => {
     if (debug) {
         cpu.logMessage(`Pushed A to stack`);
     }
+
+    return 0;
 };
 
 export const pla: operationMethod = (cpu, arg, addrMode, debug) => {
@@ -408,6 +471,8 @@ export const pla: operationMethod = (cpu, arg, addrMode, debug) => {
     if (debug) {
         cpu.logMessage(`Pulled A from stack`);
     }
+
+    return 0;
 };
 
 export const php: operationMethod = (cpu, arg, addrMode, debug) => {
@@ -415,6 +480,7 @@ export const php: operationMethod = (cpu, arg, addrMode, debug) => {
     if (debug) {
         cpu.logMessage(`Pushed Status Reg to stack`);
     }
+    return 0;
 };
 
 export const plp: operationMethod = (cpu, arg, addrMode, debug) => {
@@ -422,10 +488,13 @@ export const plp: operationMethod = (cpu, arg, addrMode, debug) => {
     if (debug) {
         cpu.logMessage(`Pulled Status Reg from stack`);
     }
+
+    return 0;
 };
 
 export const asl: operationMethod = (cpu, arg, addrMode, debug) => {
-    let result = (arg << 1) & 0xFF;
+    const originalValue = (addrMode === addrModes.ACCUMULATOR) ? cpu.getAreg() : cpu.readFromMem(arg);
+    let result = (originalValue << 1) & 0xFF;
 
     if (addrMode === addrModes.ACCUMULATOR) { // Accumulator mode
         cpu.setAreg(result);
@@ -435,7 +504,7 @@ export const asl: operationMethod = (cpu, arg, addrMode, debug) => {
 
     cpu.setFlags(result);
 
-    if((cpu.readFromMem(arg) & 0x80) === 0x80){
+    if((originalValue & 0x80) === 0x80){
         cpu.setCarry();
     } else {
         cpu.clearCarry();
@@ -444,10 +513,13 @@ export const asl: operationMethod = (cpu, arg, addrMode, debug) => {
     if (debug) {
         cpu.logMessage(`ASL on A ${Util.hex(arg)}`);
     }
+
+    return 0;
 };
 
 export const lsr: operationMethod = (cpu, arg, addrMode, debug) => {
-    let result = (arg >> 1) & 0xFF;
+    const originalValue = (addrMode === addrModes.ACCUMULATOR) ? cpu.getAreg() : cpu.readFromMem(arg);
+    let result = (originalValue >> 1) & 0xFF;
 
     if (addrMode === addrModes.ACCUMULATOR) { // Accumulator mode
         cpu.setAreg(result);
@@ -457,7 +529,7 @@ export const lsr: operationMethod = (cpu, arg, addrMode, debug) => {
 
     cpu.setFlags(result);
 
-    if((cpu.readFromMem(arg) & 0x01) === 0x01){
+    if((originalValue & 0x01) === 0x01){
         cpu.setCarry();
     } else {
         cpu.clearCarry();
@@ -466,13 +538,16 @@ export const lsr: operationMethod = (cpu, arg, addrMode, debug) => {
     if (debug) {
         cpu.logMessage(`LSR on A ${Util.hex(arg)}`);
     }
+
+    return 0;
 };
 
 export const ror: operationMethod = (cpu, arg, addrMode, debug) => {
     let c = Number(cpu.getFlags().C);
-    let result = ((arg >> 1) & 0xFF) | ((c << 7) & 0x80);
+    const originalValue = (addrMode === addrModes.ACCUMULATOR) ? cpu.getAreg() : cpu.readFromMem(arg);
+    let result = ((originalValue >> 1) & 0xFF) | ((c << 7) & 0x80);
 
-    if (addrMode === addrModes.ACCUMULATOR) { // Accumulator mode
+    if (addrMode === addrModes.ACCUMULATOR) {
         cpu.setAreg(result);
     } else {
         cpu.writeToMem(result, arg);
@@ -480,7 +555,7 @@ export const ror: operationMethod = (cpu, arg, addrMode, debug) => {
 
     cpu.setFlags(result);
 
-    if((result & 0x01) === 0x01){
+    if ((originalValue & 0x01) === 0x01) {
         cpu.setCarry();
     } else {
         cpu.clearCarry();
@@ -489,11 +564,14 @@ export const ror: operationMethod = (cpu, arg, addrMode, debug) => {
     if (debug) {
         cpu.logMessage(`ROR on A ${Util.hex(arg)}`);
     }
+
+    return 0;
 };
 
 export const rol: operationMethod = (cpu, arg, addrMode, debug) => {
     let c = Number(cpu.getFlags().C);
-    let result = ((arg << 1) & 0xFF) | c;
+    const originalValue = (addrMode === addrModes.ACCUMULATOR) ? cpu.getAreg() : cpu.readFromMem(arg);
+    let result = ((originalValue << 1) & 0xFF) | c;
 
     if (addrMode === addrModes.ACCUMULATOR) { // Accumulator mode
         cpu.setAreg(result);
@@ -503,7 +581,7 @@ export const rol: operationMethod = (cpu, arg, addrMode, debug) => {
 
     cpu.setFlags(result);
 
-    if ((result & 0x80) === 0x80) {
+    if ((originalValue & 0x80) === 0x80) {
         cpu.setCarry();
     } else {
         cpu.clearCarry();
@@ -512,4 +590,6 @@ export const rol: operationMethod = (cpu, arg, addrMode, debug) => {
     if (debug) {
         cpu.logMessage(`ROL on A ${Util.hex(arg)}`);
     }
+
+    return 0;
 };

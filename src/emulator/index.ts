@@ -1,4 +1,4 @@
-import { CPU, OpExecutionInfo } from './cpu';
+import { CPU, OpExecutionInfo, addrModes } from './cpu';
 import { PPU } from './ppu';
 import { ROM } from './rom';
 import * as headerParser from "./headerParser";
@@ -136,11 +136,6 @@ function resume() {
 pause();
 
 let cycleCount = 0;
-let frameCount = 0;
-
-const dumpFrames = 2;
-
-let frameLog = "MINE\n";
 
 function loop() {
 
@@ -155,16 +150,8 @@ function loop() {
 
   while (cycleCount < CYCLES_PER_FRAME && !cpuPaused) {
     const cyclesExecuted = executeNextOperation();
-    const opInfo = cpu.getLastOpInfo();
-    if (frameCount <= dumpFrames) frameLog += `PC: ${opInfo.PC}  OP: ${opInfo.opCode}\n`;
     cycleCount += cyclesExecuted;
   }
-
-  if (frameCount <= dumpFrames) {
-      console.log(frameLog);
-  }
-
-  if (!cpuPaused) frameCount++;
 
   cycleCount = 0;
 
@@ -196,7 +183,7 @@ function executeNextOperation(debug: boolean = false) {
   if (debug) {
     const opInfo: OpExecutionInfo = cpu.getLastOpInfo();
     const logMessage = 
-    "[DEBUG] PC: " + Util.hex(opInfo.PC) + " | OpCode: " + Util.hex(opInfo.opCode) + " | A: " + Util.hex(opInfo.A) + " | X: " + Util.hex(opInfo.X) + " | Y: " + Util.hex(opInfo.Y) + " | SP: " + Util.hex(opInfo.SP) + " | Status: " + Util.hex(opInfo.status) + "\n" +
+    "[DEBUG] PC: " + Util.hex(opInfo.PC) + " | OpCode: " + Util.hex(opInfo.opCode) + " | A: " + Util.hex(opInfo.A) + " | X: " + Util.hex(opInfo.X) + " | Y: " + Util.hex(opInfo.Y) + " | SP: " + Util.hex(opInfo.SP) + " | N: " + opInfo.N + " | Z: " + opInfo.Z + " | C: " + opInfo.C + "\n" +
     (opInfo.opLog || "");
     console.log(logMessage);
   }

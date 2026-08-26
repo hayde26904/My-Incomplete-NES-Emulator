@@ -2,7 +2,7 @@ import { opcodes } from "./operation";
 import { RAM } from "./ram";
 import { ROM } from "./rom";
 import * as addrModeHandlers from "./addrModeHandlers";
-import { argTypes } from "./operation";
+import { operandTypes } from "./operation";
 import { Util } from "./util";
 import { Bus } from "./bus";
 
@@ -64,15 +64,38 @@ export const addrModeHandlerMap: Map<number, addrModeHandlers.addrModeHandler> =
     [addrModes.INDIRECT_Y, addrModeHandlers.indirectY]
 ]);
 
+//temporary I swear
+
+export const addrModeMemoryMap: Map<addrModes, boolean> = new Map([
+    [addrModes.IMPLICIT, false],
+    [addrModes.IMMEDIATE, false],
+    [addrModes.ZEROPAGE, true],
+    [addrModes.ZEROPAGE_X, true],
+    [addrModes.ZEROPAGE_Y, true],
+    [addrModes.ABSOLUTE, true],
+    [addrModes.ABSOLUTE_X, true],
+    [addrModes.ABSOLUTE_Y, true],
+    [addrModes.ACCUMULATOR, false],
+    [addrModes.RELATIVE, false],
+    [addrModes.INDIRECT, true],
+    [addrModes.INDIRECT_X, true],
+    [addrModes.INDIRECT_Y, true],
+]);
+
 export interface OpExecutionInfo {
     opLog?: string,
     PC: number,
     opCode: number,
+    addrMode?: addrModes,
+    address?: number,
+    readValue?: number,
     A: number,
     X: number,
     Y: number,
     SP: number,
-    status: number
+    N: boolean,
+    Z: boolean,
+    C: boolean
 }
 
 export class CPU {
@@ -83,7 +106,7 @@ export class CPU {
     private Xreg: number = 0;
     private Yreg: number = 0;
     private PC: number = 0;
-    private SP: number = 0;
+    private SP: number = 255;
     private Cflag: boolean = false;
     private Zflag: boolean = false;
     private Nflag: boolean = false;
@@ -109,8 +132,12 @@ export class CPU {
         X: 0,
         Y: 0,
         SP: 0,
-        status: 0
+        N: false,
+        Z: false,
+        C: false
     };
+
+    public pageCrossed: boolean = false;
 
     constructor() {
 
@@ -135,7 +162,7 @@ export class CPU {
         this.Xreg = 0;
         this.Yreg = 0;
         this.PC = 0;
-        this.SP = 0;
+        this.SP = 253;
 
         this.Cflag = false;
         this.Zflag = false;
@@ -172,7 +199,7 @@ export class CPU {
 
             const opMethod = operation.method;
             const opAddrMode = operation.addrMode;
-            const operandType = operation.argType;
+            const operandType = operation.operandType;
             const opCycles = operation.cycles;
             const opSize = addrModeSizeMap.get(opAddrMode);
             const numArgs = opSize - 1;
@@ -184,15 +211,15 @@ export class CPU {
             const normalizedOperand = addrModeHandlerMap.get(opAddrMode)(this.bus, this, this.operands, operandType);
             let evaluatedOperand;
             switch (operandType) {
-                case argTypes.value: // treat it as a value
+                case operandTypes.value: // treat it as a value
                     evaluatedOperand = normalizedOperand;
                     break
-                case argTypes.reference: // treat it as a reference and read from memory
+                case operandTypes.reference: // treat it as a reference and read from memory
                     evaluatedOperand = this.bus.read(normalizedOperand);
                     break;
             }
 
-            if (true) {
+            if (debug) {
 
                 // collect info before execution
                 this.lastOpInfo = {
@@ -202,8 +229,16 @@ export class CPU {
                     X: this.Xreg,
                     Y: this.Yreg,
                     SP: this.SP,
-                    status: this.getStatusReg()
+                    N: this.Nflag,
+                    Z: this.Zflag,
+                    C: this.Cflag
                 };
+
+                if (addrModeMemoryMap.get(opAddrMode)) {
+                    // will be if debug eventually
+                    this.lastOpInfo.address = normalizedOperand;
+                    this.lastOpInfo.readValue = this.bus.read(normalizedOperand);
+                }
 
             }
 
@@ -211,11 +246,18 @@ export class CPU {
             this.PC += opSize;
 
             // execute op method
-            opMethod(this, evaluatedOperand, opAddrMode, debug);
+            const extraCycles = opMethod(this, evaluatedOperand, opAddrMode, debug);
 
             if (debug) this.lastOpInfo.opLog = this.popLogMessage(); // pop the log message after execution
 
-            return opCycles;
+            let cycles = opCycles;
+            if (this.pageCrossed && operation.pageCrossPenalty) {
+                cycles += 1;
+            }
+            cycles += extraCycles;
+
+
+            return cycles;
 
         } else {
             //console.log(`PC: ${Util.hex(this.PC)}  Invalid or unimplemented opcode: ${Util.hex(opcode)}`);

@@ -97,7 +97,7 @@ export class PPU {
     private showLeftBackground: boolean = false;
     private greyscale: boolean = false;
 
-    private inVblank: boolean = true;
+    private inVblank: boolean = false;
     private spriteZeroHit: boolean = false;
     private spriteOverflow: boolean = false;
 
@@ -186,11 +186,13 @@ export class PPU {
             this.scanline++;
 
             if (this.scanline === 240) { // VBLANK START
+                this.inVblank = true;
                 this.draw(); // not accurate but works for now 
                 this.NMI();
             }
 
             if (this.scanline > 261) { // VBLANK END
+                this.inVblank = false;
                 this.spriteZeroHit = false;
                 this.scanline = 0;
             }
@@ -232,16 +234,20 @@ export class PPU {
 
                 this.writeCounter = 0; // reset latch
 
-                return Util.boolsToBitmask([
+                const mask = Util.boolsToBitmask([
                     this.inVblank,
                     this.spriteZeroHit,
                     this.spriteOverflow,
-                    false,
-                    false,
-                    false,
-                    false,
-                    false
+                    true,
+                    true,
+                    true,
+                    true,
+                    true
                 ]);
+
+                this.inVblank = false; // reading this register clears the vblank flag
+
+                return mask;
 
             case reg.PPUMASK:
 
@@ -373,15 +379,26 @@ export class PPU {
         //pattern tables start at address 0 in PPU memory
         const chrIndex = tile * 16;
 
-        for (let ri = 0; ri < 8; ri++) {
+        const rowIncrement = flipV ? -1 : 1;
+        const startRow = flipV ? 7 : 0;
+
+        const bitIncrement = flipH ? -1 : 1;
+        const startBit = flipH ? 7 : 0;
+
+        for ( // very nice syntax right here
+            let ri = startRow;
+            flipV ? ri >= 0 : ri < 8;
+            ri += rowIncrement
+        ) {
             const r = flipV ? 7 - ri : ri; // if the tile is flipped vertically, read the rows in reverse order
             const chrRow = patternTable.read(chrIndex + r);
             const attrRow = patternTable.read(chrIndex + r + 8);
-            const x = xPos;
-            const y = yPos + r;
 
-            for (let bi = 0; bi < 8; bi++) {
-
+            for (
+                let bi = startBit;
+                flipH ? bi >= 0 : bi < 8;
+                bi += bitIncrement
+            ) {
                 const b = flipH ? 7 - bi : bi; // if the tile is flipped horizontally, read the bits in reverse order
                 const chrBit = (chrRow >> (7 - b)) & 1;
                 const attrBit = (attrRow >> (7 - b)) & 1;
@@ -389,8 +406,12 @@ export class PPU {
                 const colorIndex = (attrBit << 1) | chrBit;
                 const colorId = palette[colorIndex];
                 const color = colorMap[colorId];
+
+                const x = xPos + bi;
+                const y = yPos + ri;
+
                 // TRANSPARENCY
-                if (!(colorIndex === 0 && backgroundTransparent)) this.drawPixel(x + b, y, color[0], color[1], color[2]) //this.ctx.fillRect(x + b, y, 1, 1);
+                if (!(colorIndex === 0 && backgroundTransparent)) this.drawPixel(x, y, color[0], color[1], color[2]) //this.ctx.fillRect(x + b, y, 1, 1);
             }
 
         }
@@ -414,8 +435,7 @@ export class PPU {
             const flipH = Boolean(Util.getBit(attributes, 6));
             const flipV = Boolean(Util.getBit(attributes, 7));
 
-
-            if (spriteIndex === 0) this.spriteZeroHit = true; // set sprite zero hit flag if the first sprite in OAM is being drawn, used for some games to do things like split the screen
+            if (spriteIndex === 0 && xPos > 0 && yPos > 0) this.spriteZeroHit = true; // set sprite zero hit flag if the first sprite in OAM is being drawn, used for some games to do things like split the screen
 
             //if (tileIndex !== 0) console.log(`Drawing sprite $${Util.hex(tileIndex)} at X: ${Util.hex(xPos)} Y: ${Util.hex(yPos)}`);
             this.drawTile(tileIndex, xPos, yPos, palette, flipH, flipV, false, this.patternTables[this.spriteAddr ? 1 : 0], true);
@@ -482,14 +502,14 @@ export class PPU {
             this.ctx.fillText(String(obj.paletteIndex/4), obj.x * this.outputScaleX, obj.y * this.outputScaleY);
         }*/
 
-        for (let i = 0; i < this.nameTables[0].getSize(); i++) {
+        /*for (let i = 0; i < this.nameTables[0].getSize(); i++) {
             const tileIndex = this.nameTables[0].read(i);
             const xPos = (i % 32) * 8;
             const yPos = Math.floor(i / 32) * 8;
             this.ctx.fillStyle = '#FFF';
             this.ctx.font = 'Arial 30px';
             this.ctx.fillText(Util.hex(tileIndex), xPos * this.outputScaleX, yPos * this.outputScaleY);
-        }
+        }*/
 
     }
 
