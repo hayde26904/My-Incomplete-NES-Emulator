@@ -7,3 +7,4 @@ export const PPUSCROLL = 0x2005;
 export const PPUADDR = 0x2006;
 export const PPUDATA = 0x2007;
 export const OAMDMA = 0x4014;
+export const JOY1 = 0x4016;

@@ -1,4 +1,5 @@
 import { CPU } from "./cpu";
+import { Input } from "./input";
 import { Mapper } from "./mapper";
 import { PPU } from "./ppu";
 import { RAM } from "./ram";
@@ -10,6 +11,7 @@ export class Bus {
     private ppu : PPU;
     private ram : RAM;
     private mapper : Mapper;
+    private input : Input;
 
     constructor(cpu : CPU, ppu : PPU){
         this.cpu = cpu;
@@ -19,6 +21,10 @@ export class Bus {
 
     public setMapper(mapper : Mapper){
         this.mapper = mapper;
+    }
+
+    public setInput(input : Input){
+        this.input = input;
     }
 
     public read(address : number) : number {
@@ -34,6 +40,10 @@ export class Bus {
                 throw new Error(`PC: ${Util.hex(this.cpu.getPC())}  error reading from PPU register: ${Util.hex(address)}`);
             }
 
+        } else if(address === reg.JOY1) {
+
+            return this.input.shiftControlStack();
+            
         } else if(address >= 0x8000){ 
 
             return this.mapper.read(address);
@@ -60,6 +70,9 @@ export class Bus {
         } else if(address === reg.OAMDMA){ //OAM DMA
 
             this.ppu.writeRegister(value, address);
+        } else if (address === reg.JOY1) { // JOY1
+
+            this.input.prepareControlStack();
 
         } else if(address >= 0x8000){
 

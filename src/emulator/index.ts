@@ -7,6 +7,7 @@ import { Util } from './util';
 import { Bus } from './bus';
 import { Mapper } from './mapper';
 import { mapperMap } from './mapperMap';
+import { Input } from './input';
 
 const TARGET_FPS = 60
 
@@ -33,10 +34,13 @@ canvas.height = 960;
 let mapper: Mapper;
 const cpu: CPU = new CPU();
 const ppu: PPU = new PPU(ctx);
+const input: Input = new Input();
 
 ppu.setNMIhandler(cpu.goToNMI.bind(cpu));
 
 const bus: Bus = new Bus(cpu, ppu);
+bus.setInput(input);
+
 cpu.setBus(bus);
 ppu.setBus(bus);
 
@@ -133,8 +137,6 @@ function resume() {
   document.getElementById('pause-btn')!.textContent = "Pause";
 }
 
-pause();
-
 let cycleCount = 0;
 
 function loop() {
@@ -191,9 +193,3 @@ function executeNextOperation(debug: boolean = false) {
   return cycles;
 
 }
-
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'd') {
-    ppu.debugDumpNametable(0);
-  }
-});
