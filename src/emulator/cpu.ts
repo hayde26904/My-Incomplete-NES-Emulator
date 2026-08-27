@@ -252,12 +252,11 @@ export class CPU {
 
             let cycles = opCycles;
 
-            // something's up with this. Makes the barrel RNG weird in DK
+            
             if (this.pageCrossed && operation.pageCrossPenalty) {
                 cycles += 1;
             }
             cycles += extraCycles;
-
 
             return cycles;
 

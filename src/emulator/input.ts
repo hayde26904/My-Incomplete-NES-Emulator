@@ -7,11 +7,9 @@ export class Input {
         this.keyState = new Set<string>();
         window.addEventListener("keydown", (event) => {
             this.keyState.add(event.code);
-            console.log(event.code);
         });
         window.addEventListener("keyup", (event) => {
             this.keyState.delete(event.code);
-            console.log(event.code);
         });
     }
 

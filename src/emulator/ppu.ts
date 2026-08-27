@@ -50,7 +50,7 @@ export class PPU {
     private attrTables: Array<RAM> = [new RAM(0x40), new RAM(0x40), new RAM(0x40), new RAM(0x40)];
     private backgroundPalettes: RAM = new RAM(0x10);
     private spritePalettes: RAM = new RAM(0x10);
-    private oam: RAM = new RAM(0xFF);
+    private oam: RAM = new RAM(0x100);
 
     // maps different RAM to different addresses
     private memoryRegions: MemoryRegion[] = [
@@ -106,11 +106,6 @@ export class PPU {
     private cycle: number = 0;
     private scanline: number = 0;
 
-
-    private testPalette: number[] = [
-        0x12, 0x16, 0x27, 0x18
-    ];
-
     constructor(ctx: CanvasRenderingContext2D) {
         this.ctx = ctx;
         this.frameBuffer = this.ctx.createImageData(this.ctx.canvas.width, this.ctx.canvas.height);
@@ -158,7 +153,7 @@ export class PPU {
         //copy from OAM DMA address in CPU memory to OAM memory
         let oamDmaAddr = Util.bytesToAddr(this.oamAddr, this.oamDma);
 
-        for (let addr = 0; addr < this.oam.getSize(); addr++) {
+        for (let addr = 0; addr <= this.oam.getSize(); addr++) {
             this.oam.write(this.bus.read(oamDmaAddr + addr), addr);
         }
     }
@@ -418,7 +413,7 @@ export class PPU {
     }
 
     private drawSprites() {
-        for (let spriteIndex = 0; (spriteIndex + 4) < this.oam.getSize(); spriteIndex += 4) {
+        for (let spriteIndex = 0; (spriteIndex + 4) <= this.oam.getSize(); spriteIndex += 4) {
 
             const tileIndex = this.oam.read(spriteIndex + 1);
             const xPos = this.oam.read(spriteIndex + 3);
