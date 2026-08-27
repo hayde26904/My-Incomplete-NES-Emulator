@@ -15,7 +15,7 @@ const CYCLES_PER_SECOND = 1789773;
 const CYCLES_PER_FRAME = 29780;
 const NMI_CYCLE = 27507
 
-const NES_FRAME_TIME = 1000 / 60.098; // ~16.64ms per frame
+const NES_FRAME_TIME = 1000 / 80;
 
 const DEBUG_SERVER_URL = "ws://localhost:3000";
 
@@ -24,8 +24,8 @@ const ctx = canvas.getContext('2d');
 
 ctx.imageSmoothingEnabled = false;
 
-canvas.width = 1024;
-canvas.height = 960;
+canvas.width = 765;
+canvas.height = 720;
 //canvas.width = 255;
 //canvas.height = 240;
 
@@ -120,6 +120,10 @@ function loadProgram(rom: ROM) {
   ppu.loadCHR(chr);
 
   currentPrgRom = rom;
+
+  if (document.activeElement instanceof HTMLElement) {
+    document.activeElement.blur();
+  }
 }
 
 
@@ -145,10 +149,10 @@ function loop() {
   //const deltaTime = (currentTime - lastFrameTime) / (1000 / TARGET_FPS);
   const elapsedTime = currentTime - lastFrameTime;
 
-  /*if (elapsedTime < NES_FRAME_TIME) { // skip frame if we haven't reached the target frame time yet
+  if (elapsedTime < NES_FRAME_TIME) { // skip frame if we haven't reached the target frame time yet
     requestAnimationFrame(loop);
     return;
-  }*/
+  }
 
   while (cycleCount < CYCLES_PER_FRAME && !cpuPaused) {
     const cyclesExecuted = executeNextOperation();

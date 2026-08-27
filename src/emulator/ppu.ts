@@ -38,8 +38,8 @@ interface MemoryRegion {
 
 export class PPU {
 
-    public outputScaleX: number = 4;
-    public outputScaleY: number = 4;
+    public outputScaleX: number = 3;
+    public outputScaleY: number = 3;
 
     private ctx: CanvasRenderingContext2D;
     private frameBuffer: ImageData;
