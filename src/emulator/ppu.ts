@@ -76,9 +76,7 @@ export class PPU {
     private scrollX: number = 0;
     private scrollY: number = 0;
 
-    private oamDma: number;
-    private oamAddr: number;
-    private oamDmaSet: boolean = false;
+    private oamAddr: number = 0;
 
     private NMIenabled: boolean = false;
     private masterSlave: boolean = false;
@@ -149,13 +147,13 @@ export class PPU {
 
     }
 
-    private copySpritesFromOamDma() {
-        //copy from OAM DMA address in CPU memory to OAM memory
-        let oamDmaAddr = Util.bytesToAddr(this.oamAddr, this.oamDma);
+    public copySpritesFromOamDma(dmaAddr: number) {
 
-        for (let addr = 0; addr <= this.oam.getSize(); addr++) {
-            this.oam.write(this.bus.read(oamDmaAddr + addr), addr);
+        //copy from OAM DMA in CPU memory to OAM memory
+        for (let i = 0; i <= this.oam.getSize(); i++) {
+            this.oam.write(this.bus.read(dmaAddr + i), this.oamAddr + i);
         }
+
     }
 
     private writeToMem(value: number, address: number, runCallbacks: boolean = true) { // set runCallbacks to false when running in a callback to prevent unwanted recursion
@@ -172,8 +170,19 @@ export class PPU {
         }
     }
 
+    private getSpriteZeroScanline() : number { // not pixel perfect, but good enough for now
+        const spriteX = this.oam.read(3);
+        const spriteY = this.oam.read(0);
+        
+        return spriteY;
+    }
+
     public tick() {
         this.cycle++;
+
+        if (this.scanline === this.oam.read(0)) {
+            this.spriteZeroHit = true;
+        }
 
         if (this.cycle > 340) {
 
@@ -182,25 +191,28 @@ export class PPU {
 
             if (this.scanline === 241) { // VBLANK START
                 this.inVblank = true;
-                this.draw(); // not accurate but works for now 
-                this.NMI();
+                this.draw();
+
+                if (this.NMIenabled) {
+                    //console.log("NMI triggered");
+                    this.NMI();
+                }
+
             }
 
             if (this.scanline > 261) { // VBLANK END
                 this.inVblank = false;
-                this.spriteZeroHit = false;
                 this.scanline = 0;
+                this.spriteZeroHit = false;
             }
         }
 
     }
 
     public NMI() {
-        if (!this.NMIenabled) return;
+        console.log(`NMI triggered`);
         this.NMIhandler();
     }
-
-
 
     public debugDumpNametable(nametableIndex: number) {
         const bytes = [];
@@ -233,11 +245,11 @@ export class PPU {
                     this.inVblank,
                     this.spriteZeroHit,
                     this.spriteOverflow,
-                    true,
-                    true,
-                    true,
-                    true,
-                    true
+                    false,
+                    false,
+                    false,
+                    false,
+                    false
                 ]);
 
                 this.inVblank = false; // reading this register clears the vblank flag
@@ -272,7 +284,7 @@ export class PPU {
         }
     }
 
-
+    private nmiToggleCounter: number = 0;
 
     public writeRegister(value: number, address: number) {
 
@@ -281,6 +293,8 @@ export class PPU {
         switch (address) {
             case reg.PPUCTRL:
 
+                const tempNMIenabled = this.NMIenabled; // store the old value to check if it changed
+
                 this.NMIenabled = Boolean(Util.getBit(value, 7));
                 this.masterSlave = Boolean(Util.getBit(value, 6));
                 this.spriteSizeMode = Boolean(Util.getBit(value, 5));
@@ -288,6 +302,16 @@ export class PPU {
                 this.spriteAddr = Boolean(Util.getBit(value, 3));
                 this.vramIncrement = Boolean(Util.getBit(value, 2));
                 this.currentNametable = value & 3;
+
+                if (tempNMIenabled !== this.NMIenabled) {
+                    this.nmiToggleCounter++;
+                }
+
+                if (this.nmiToggleCounter >= 54) {
+                    console.log(Util.hex(this.bus.getCPU().getPC()));
+                    this.nmiToggleCounter = 0;
+                    this.NMIenabled = true;
+                }
 
                 break;
 
@@ -304,9 +328,6 @@ export class PPU {
                     this.greyscale
                 ] = Util.bitmaskToBools(value);
 
-                break;
-            case reg.OAMDMA:
-                this.oamDma = value;
                 break;
             case reg.OAMADDR:
                 this.oamAddr = value;
@@ -430,8 +451,6 @@ export class PPU {
             const flipH = Boolean(Util.getBit(attributes, 6));
             const flipV = Boolean(Util.getBit(attributes, 7));
 
-            if (spriteIndex === 0 && xPos > 0 && yPos > 0) this.spriteZeroHit = true; // set sprite zero hit flag if the first sprite in OAM is being drawn, used for some games to do things like split the screen
-
             //if (tileIndex !== 0) console.log(`Drawing sprite $${Util.hex(tileIndex)} at X: ${Util.hex(xPos)} Y: ${Util.hex(yPos)}`);
             this.drawTile(tileIndex, xPos, yPos, palette, flipH, flipV, false, this.patternTables[this.spriteAddr ? 1 : 0], true);
         }
@@ -444,8 +463,8 @@ export class PPU {
 
         for (let i = 0; i < nametable.getSize(); i++) {
             const tileIndex = nametable.read(i);
-            const xPos = (i % 32) * 8;
-            const yPos = Math.floor(i / 32) * 8;
+            let xPos = (i % 32) * 8;
+            let yPos = Math.floor(i / 32) * 8;
             const attrX = Math.floor(i / 4) % 8; // each attr byte controls a 4x4 tile region
             const attrY = Math.floor(i / 128);
             const quadX = Math.floor(i / 2) % 2; // 0 or 1
@@ -460,6 +479,9 @@ export class PPU {
             palette[2] = this.backgroundPalettes.read(paletteIndex + 2);
             palette[3] = this.backgroundPalettes.read(paletteIndex + 3);
 
+            xPos -= this.scrollX;
+            yPos -= this.scrollY;
+
             this.drawTile(tileIndex, xPos, yPos, palette, false, false, false, this.patternTables[this.backgroundAddr ? 1 : 0], false);
             debugAttr.push({ x: xPos, y: yPos, quadX, quadY, paletteIndex, attrX, attrY });
         }
@@ -468,8 +490,6 @@ export class PPU {
     }
 
     public draw() {
-
-        this.copySpritesFromOamDma();
 
         const debugAttr = this.drawBackground();
         this.drawSprites();

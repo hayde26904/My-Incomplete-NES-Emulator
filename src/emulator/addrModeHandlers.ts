@@ -61,7 +61,8 @@ export function indirect(bus : Bus, cpu : CPU, operands : Uint8Array, operandTyp
 
     let addr = Util.bytesToAddr(operands[0], operands[1]);
     let lo = bus.read(addr);
-    let hi = bus.read(addr + 1);
+    //let hi = bus.read(addr + 1);
+    let hi = bus.read((addr & 0xFF00) | ((addr + 1) & 0x00FF)); // famous bug apparently
     return Util.bytesToAddr(lo, hi);
 
 }

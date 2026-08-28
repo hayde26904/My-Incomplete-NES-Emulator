@@ -428,7 +428,7 @@ export const and: operationMethod = (cpu, arg, addrMode, debug) => {
     cpu.setAreg(result);
     cpu.setFlags(result);
     if (debug) {
-        cpu.logMessage(`AND ${arg} with A`);
+        cpu.logMessage(`AND ${Util.hex(arg)} with A`);
     }
 
     return 0;
@@ -439,7 +439,7 @@ export const ora: operationMethod = (cpu, arg, addrMode, debug) => {
     cpu.setAreg(result);
     cpu.setFlags(result);
     if (debug) {
-        cpu.logMessage(`OR ${arg} with A`);
+        cpu.logMessage(`OR ${Util.hex(arg)} with A`);
     }
 
     return 0;
@@ -450,7 +450,7 @@ export const eor: operationMethod = (cpu, arg, addrMode, debug) => {
     cpu.setAreg(result);
     cpu.setFlags(result);
     if (debug) {
-        cpu.logMessage(`EOR ${arg} with A`);
+        cpu.logMessage(`EOR ${Util.hex(arg)} with A`);
     }
 
     return 0;

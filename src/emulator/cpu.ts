@@ -138,6 +138,10 @@ export class CPU {
     };
 
     public pageCrossed: boolean = false;
+    private cycleCount: number = 0;
+
+    public hitBrk: boolean = false;
+    public lastOpSize: number = 0;
 
     constructor() {
 
@@ -190,10 +194,15 @@ export class CPU {
     }
 
     //returns number of cycles used
-    public executeNextOperation(debug: boolean = false): number {
+    public executeNextOperation(debug: boolean = false) : number {
 
         const opcode = this.bus.read(this.PC);
-        const operation = opcodes[opcode]
+        const operation = opcodes[opcode];
+
+        /*if (opcode === 0x00) { // BRK instruction
+            this.hitBrk = true;
+            return 0; // BRK takes 7 cycles
+        }*/
 
         if (operation) {
 
@@ -245,26 +254,38 @@ export class CPU {
 
             this.PC += opSize;
 
+            let executedCycles = opCycles; // base cycles for the operation
+
             // execute op method
-            const extraCycles = opMethod(this, evaluatedOperand, opAddrMode, debug);
+            executedCycles += opMethod(this, evaluatedOperand, opAddrMode, debug); // add extra cycles from the operation method if any
 
             if (debug) this.lastOpInfo.opLog = this.popLogMessage(); // pop the log message after execution
-
-            let cycles = opCycles;
-
             
             if (this.pageCrossed && operation.pageCrossPenalty) {
-                cycles += 1;
+                executedCycles += 1;
             }
-            cycles += extraCycles;
 
-            return cycles;
+            this.addCycles(executedCycles);
+
+            return executedCycles; // return the number of cycles used for this operation
 
         } else {
             //console.log(`PC: ${Util.hex(this.PC)}  Invalid or unimplemented opcode: ${Util.hex(opcode)}`);
             this.PC++;
             return 0;
         }
+    }
+
+    public addCycles(cycles: number) {
+        this.cycleCount += cycles;
+    }
+
+    public getCycleCount(): number {
+        return this.cycleCount;
+    }
+
+    public resetCycleCount() {
+        this.cycleCount = 0;
     }
 
     private popLogMessage() {
@@ -425,6 +446,7 @@ export class CPU {
 
     public endNMI(): void {
         this.NMITriggered = false;
+        this.clearInterruptDisable();
         this.frameCount++;
     }
 

@@ -1,7 +1,7 @@
 // will be cleaned up later
 export class Input {
     private keyState : Set<string>;
-    private controlStack : Array<number>;
+    private controlStack : Array<number> = [];
 
     constructor(){
         this.keyState = new Set<string>();

@@ -141,8 +141,6 @@ function resume() {
   document.getElementById('pause-btn')!.textContent = "Pause";
 }
 
-let cycleCount = 0;
-
 function loop() {
 
   const currentTime = performance.now();
@@ -154,12 +152,16 @@ function loop() {
     return;
   }
 
-  while (cycleCount < CYCLES_PER_FRAME && !cpuPaused) {
-    const cyclesExecuted = executeNextOperation();
-    cycleCount += cyclesExecuted;
+  while (cpu.getCycleCount() < CYCLES_PER_FRAME && !cpuPaused) {
+    const executedCycles = executeNextOperation();
+
+    for (let i = 0; i < executedCycles * 3; i++) {
+      ppu.tick();
+    }
+
   }
 
-  cycleCount = 0;
+  cpu.resetCycleCount();
 
   //console.log(`FRAME END  PC: ${Util.hex(cpu.getPC())}`);
   //console.log(`NMI START  PC: ${Util.hex(cpu.getPC())}`);
@@ -171,20 +173,22 @@ function loop() {
 }
 
 // wrapper for CPU function to include PPU ticks and breakpoint functionality
-function executeNextOperation(debug: boolean = false) {
+function executeNextOperation(debug: boolean = false) : number {
 
   //console.log(`FRAME START  PC: ${Util.hex(cpu.getPC())}`);
 
-  const cycles = cpu.executeNextOperation(debug);
-
-  for (let i = 0; i < cycles * 3; i++) {
-    ppu.tick();
-  }
+  const executedCycles = cpu.executeNextOperation(debug);
 
   if (breakpoint !== null && cpu.getPC() === breakpoint) {
     console.log(`Hit breakpoint at ${Util.hex(breakpoint)}!`);
     pause();
   }
+
+  /*if (cpu.hitBrk) {
+    console.log(`Hit BRK instruction at ${Util.hex(cpu.getPC())}!`);
+    debug = true;
+    pause();
+  }*/
 
   if (debug) {
     const opInfo: OpExecutionInfo = cpu.getLastOpInfo();
@@ -194,6 +198,6 @@ function executeNextOperation(debug: boolean = false) {
     console.log(logMessage);
   }
 
-  return cycles;
+  return executedCycles;
 
 }

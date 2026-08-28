@@ -69,15 +69,30 @@ export class Bus {
 
         } else if(address === reg.OAMDMA){ //OAM DMA
 
-            this.ppu.writeRegister(value, address);
+            this.ppu.copySpritesFromOamDma(value << 8); // value is the high byte of the address, so shift it left by 8 to get the full address
+
+            this.cpu.addCycles(513); // 513 cycles for OAM DMA transfer
+
+            if (this.cpu.getCycleCount() % 2 === 1) { // if the CPU is on an odd cycle, add one cycle to make it even
+                this.cpu.addCycles(1);
+            }
+        
         } else if (address === reg.JOY1) { // JOY1
 
             this.input.prepareControlStack();
 
+        } else if(address >= 0x4000 && address < 0x4018){ // APU and I/O registers
+
+            this.ppu.writeRegister(value, address); // for now just pass it to the PPU, will need to implement APU later
+            
         } else if(address >= 0x8000){
 
             this.mapper.write(value, address);
 
         }
+    }
+
+    public getCPU() : CPU {
+        return this.cpu;
     }
 }

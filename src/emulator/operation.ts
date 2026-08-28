@@ -156,7 +156,7 @@ export const ops: Array<Operation> = [
         method: opMethods.jmp,
         opCodes: [0x4C, 0x6C],
         addrModes: [addrModes.ABSOLUTE, addrModes.INDIRECT],
-        operandTypes: [operandTypes.value, operandTypes.reference],
+        operandTypes: [operandTypes.value, operandTypes.value],
         pageCrossPenalty: [false, false],
         cycles: [3,5]
     },
