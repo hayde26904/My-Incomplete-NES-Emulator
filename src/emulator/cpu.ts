@@ -182,8 +182,13 @@ export class CPU {
 
     public loadProgram(rom: ROM): void {
 
-        this.NMIvector = Util.bytesToAddr(this.bus.read(0xfffa), this.bus.read(0xfffb));
-        this.resetVector = Util.bytesToAddr(this.bus.read(0xfffc), this.bus.read(0xfffd));
+        //this.NMIvector = Util.bytesToAddr(this.bus.read(0xfffa), this.bus.read(0xfffb));
+        //this.resetVector = Util.bytesToAddr(this.bus.read(0xfffc), this.bus.read(0xfffd));
+
+        const romSize = rom.getSize();
+
+        this.NMIvector = Util.bytesToAddr(rom.read(romSize - 6), rom.read(romSize - 5));
+        this.resetVector = Util.bytesToAddr(rom.read(romSize - 4), rom.read(romSize - 3));
 
         console.log(`NMI: ${Util.hex(this.NMIvector)}`);
         console.log(`RESET: ${Util.hex(this.resetVector)}`);

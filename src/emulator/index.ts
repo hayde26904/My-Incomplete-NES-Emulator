@@ -176,7 +176,6 @@ function loop() {
 function executeNextOperation(debug: boolean = false) : number {
 
   //console.log(`FRAME START  PC: ${Util.hex(cpu.getPC())}`);
-
   const executedCycles = cpu.executeNextOperation(debug);
 
   if (breakpoint !== null && cpu.getPC() === breakpoint) {
