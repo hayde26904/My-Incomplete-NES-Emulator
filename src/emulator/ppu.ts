@@ -210,7 +210,6 @@ export class PPU {
     }
 
     public NMI() {
-        console.log(`NMI triggered`);
         this.NMIhandler();
     }
 
@@ -293,8 +292,6 @@ export class PPU {
         switch (address) {
             case reg.PPUCTRL:
 
-                const tempNMIenabled = this.NMIenabled; // store the old value to check if it changed
-
                 this.NMIenabled = Boolean(Util.getBit(value, 7));
                 this.masterSlave = Boolean(Util.getBit(value, 6));
                 this.spriteSizeMode = Boolean(Util.getBit(value, 5));
@@ -302,16 +299,6 @@ export class PPU {
                 this.spriteAddr = Boolean(Util.getBit(value, 3));
                 this.vramIncrement = Boolean(Util.getBit(value, 2));
                 this.currentNametable = value & 3;
-
-                if (tempNMIenabled !== this.NMIenabled) {
-                    this.nmiToggleCounter++;
-                }
-
-                if (this.nmiToggleCounter >= 54) {
-                    console.log(Util.hex(this.bus.getCPU().getPC()));
-                    this.nmiToggleCounter = 0;
-                    this.NMIenabled = true;
-                }
 
                 break;
 

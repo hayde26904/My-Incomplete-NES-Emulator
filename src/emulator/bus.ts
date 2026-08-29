@@ -81,9 +81,9 @@ export class Bus {
 
             this.input.prepareControlStack();
 
-        } else if(address >= 0x4000 && address < 0x4018){ // APU and I/O registers
+        } else if(address >= 0x4000 && address < 0x4018){
 
-            this.ppu.writeRegister(value, address); // for now just pass it to the PPU, will need to implement APU later
+            this.ppu.writeRegister(value, address); // for now just pass it to the PPU
             
         } else if(address >= 0x8000){
 
