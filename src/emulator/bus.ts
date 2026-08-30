@@ -42,7 +42,7 @@ export class Bus {
 
         } else if(address === reg.JOY1) {
 
-            return this.input.shiftControlStack();
+            return this.input.read();
             
         } else if(address >= 0x8000){ 
 
@@ -79,7 +79,7 @@ export class Bus {
         
         } else if (address === reg.JOY1) { // JOY1
 
-            this.input.prepareControlStack();
+            this.input.write(value);
 
         } else if(address >= 0x4000 && address < 0x4018){
 
@@ -90,9 +90,5 @@ export class Bus {
             this.mapper.write(value, address);
 
         }
-    }
-
-    public getCPU() : CPU {
-        return this.cpu;
     }
 }

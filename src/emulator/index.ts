@@ -9,31 +9,25 @@ import { Mapper } from './mapper';
 import { mapperMap } from './mapperMap';
 import { Input } from './input';
 
-const TARGET_FPS = 60
+const SCALE = 3;
 
-const CYCLES_PER_SECOND = 1789773;
 const CYCLES_PER_FRAME = 29780;
-const NMI_CYCLE = 27507
 
-const NES_FRAME_TIME = 1000 / 80;
-
-const DEBUG_SERVER_URL = "ws://localhost:3000";
+const NES_FRAME_TIME = 1000 / 60;
 
 const canvas = document.getElementById('canvas') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d');
+canvas.width = 256 * SCALE;
+canvas.height = 240 * SCALE;
 
-ctx.imageSmoothingEnabled = false;
-
-canvas.width = 765;
-canvas.height = 720;
-//canvas.width = 255;
-//canvas.height = 240;
-
-//ctx.scale(4, 4);
+const bufferCanvas = document.createElement('canvas') as HTMLCanvasElement; // needed for scaling the frame buffer
+const bufferCtx = bufferCanvas.getContext('2d');
+bufferCanvas.width = 256;
+bufferCanvas.height = 240;
 
 let mapper: Mapper;
 const cpu: CPU = new CPU();
-const ppu: PPU = new PPU(ctx);
+const ppu: PPU = new PPU();
 const input: Input = new Input();
 
 ppu.setNMIhandler(cpu.goToNMI.bind(cpu));
@@ -43,8 +37,6 @@ bus.setInput(input);
 
 cpu.setBus(bus);
 ppu.setBus(bus);
-
-let currentPrgRom: ROM;
 
 
 // debug buttons
@@ -104,8 +96,12 @@ function loadProgram(rom: ROM) {
   console.log(romInfo);
   console.log(Util.Uint8ArrayToHex(prg.getMemory()));
 
+  if (!mapperMap.has(romInfo.mapperNumber)) {
+    throw new Error(`Mapper ${romInfo.mapperNumber} not supported`);
+  }
 
   mapper = mapperMap.get(romInfo.mapperNumber);
+
   mapper.setPrgRom(prg);
   bus.setMapper(mapper);
   console.log(mapper);
@@ -118,8 +114,6 @@ function loadProgram(rom: ROM) {
   ppu.reset();
   cpu.loadProgram(prg);
   ppu.loadCHR(chr);
-
-  currentPrgRom = rom;
 
   if (document.activeElement instanceof HTMLElement) {
     document.activeElement.blur();
@@ -163,6 +157,18 @@ function loop() {
 
   cpu.resetCycleCount();
 
+  // DRAW FRAME
+
+  ctx.imageSmoothingEnabled = false;
+  bufferCtx.imageSmoothingEnabled = false;
+
+  const frameBuffer = ppu.getFrameBuffer();
+  bufferCtx.putImageData(frameBuffer, 0, 0); // draw to buffer canvas
+
+  ctx.drawImage(bufferCanvas, 0, 0, canvas.width, canvas.height); // draw on main canvas and resize
+
+  ppu.clearFrameBuffer(); // clear the frame buffer for the next frame
+
   //console.log(`FRAME END  PC: ${Util.hex(cpu.getPC())}`);
   //console.log(`NMI START  PC: ${Util.hex(cpu.getPC())}`);
   //console.log(`NMI END  PC: ${Util.hex(cpu.getPC())}`);
@@ -175,6 +181,7 @@ function loop() {
 // wrapper for CPU function to include PPU ticks and breakpoint functionality
 function executeNextOperation(debug: boolean = false) : number {
 
+  const lastOpInfo = cpu.getLastOpInfo();
   //console.log(`FRAME START  PC: ${Util.hex(cpu.getPC())}`);
   const executedCycles = cpu.executeNextOperation(debug);
 
@@ -183,11 +190,16 @@ function executeNextOperation(debug: boolean = false) : number {
     pause();
   }
 
-  /*if (cpu.hitBrk) {
+  if (cpu.hitBrk) {
     console.log(`Hit BRK instruction at ${Util.hex(cpu.getPC())}!`);
     debug = true;
+    const opInfo: OpExecutionInfo = lastOpInfo;
+    const logMessage = 
+    "[DEBUG] PC: " + Util.hex(opInfo.PC) + " | OpCode: " + Util.hex(opInfo.opCode) + " | A: " + Util.hex(opInfo.A) + " | X: " + Util.hex(opInfo.X) + " | Y: " + Util.hex(opInfo.Y) + " | SP: " + Util.hex(opInfo.SP) + " | N: " + opInfo.N + " | Z: " + opInfo.Z + " | C: " + opInfo.C + "\n" +
+    (opInfo.opLog || "");
+    console.log(logMessage);
     pause();
-  }*/
+  }
 
   if (debug) {
     const opInfo: OpExecutionInfo = cpu.getLastOpInfo();

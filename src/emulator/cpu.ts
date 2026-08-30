@@ -204,9 +204,9 @@ export class CPU {
         const opcode = this.bus.read(this.PC);
         const operation = opcodes[opcode];
 
-        /*if (opcode === 0x00) { // BRK instruction
+        /*if (opcode === 0x00 && !debug) { // BRK instruction
             this.hitBrk = true;
-            return 0; // BRK takes 7 cycles
+            return 0;
         }*/
 
         if (operation) {

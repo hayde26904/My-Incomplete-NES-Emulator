@@ -36,13 +36,14 @@ interface MemoryRegion {
     onWrite?: MemoryWriteHandler;
 }
 
+const SCREEN_WIDTH = 256;
+const SCREEN_HEIGHT = 240;
+
 export class PPU {
 
-    public outputScaleX: number = 3;
-    public outputScaleY: number = 3;
-
-    private ctx: CanvasRenderingContext2D;
-    private frameBuffer: ImageData;
+    private frameBuffer: ImageData = new ImageData(SCREEN_WIDTH, SCREEN_HEIGHT);
+    private topBuffer: ImageData = new ImageData(SCREEN_WIDTH, SCREEN_HEIGHT);
+    private bottomBuffer: ImageData = new ImageData(SCREEN_WIDTH, SCREEN_HEIGHT);
     private bus: Bus;
     private NMIhandler: CallableFunction;
     private patternTables: Array<RAM> = [new RAM(0x1000), new RAM(0x1000)];
@@ -68,9 +69,9 @@ export class PPU {
         { start: 0x3F10, end: 0x3F1F, ram: this.spritePalettes }
     ];
 
-    private mirroringMode: number = 0; // 0 horizontal 1 verticle
+    private mirroringMode: number = 0; // 0 horizontal 1 vertical
 
-    private writeAddr: number = null;
+    private currentAddr: number = 0;
 
     private writeCounter: number = 0;
     private scrollX: number = 0;
@@ -84,13 +85,13 @@ export class PPU {
     private backgroundAddr: boolean = false;
     private spriteAddr: boolean = false;
     private vramIncrement: boolean = false;
-    private currentNametable: number = 0;
+    private currentNametableIndex: number = 0;
 
     private emphasizeBlue: boolean = false;
     private emphasizeGreen: boolean = false;
     private emphasizeRed: boolean = false;
-    private showSprites: boolean = false;
-    private showBackground: boolean = false;
+    private showSprites: boolean = true;
+    private showBackground: boolean = true;
     private showLeftSprites: boolean = false;
     private showLeftBackground: boolean = false;
     private greyscale: boolean = false;
@@ -99,15 +100,13 @@ export class PPU {
     private spriteZeroHit: boolean = false;
     private spriteOverflow: boolean = false;
 
+    private ppuDataBuffer: number = 0;
     private paletteBuffer = new Uint8Array(4);
 
     private cycle: number = 0;
     private scanline: number = 0;
 
-    constructor(ctx: CanvasRenderingContext2D) {
-        this.ctx = ctx;
-        this.frameBuffer = this.ctx.createImageData(this.ctx.canvas.width, this.ctx.canvas.height);
-
+    constructor() {
     }
 
     public reset() {
@@ -156,9 +155,14 @@ export class PPU {
 
     }
 
+    private getMemoryRegion(address: number): MemoryRegion {
+        return this.memoryRegions[this.memoryRegions.findIndex((region) => (address % 0x3F20) >= region.start && (address % 0x3F20) <= region.end)];
+    }
+
+
     private writeToMem(value: number, address: number, runCallbacks: boolean = true) { // set runCallbacks to false when running in a callback to prevent unwanted recursion
         //console.log(`attempting data write of ${Util.hex(value)} to ${Util.hex(address)}`);
-        const memoryRegion = this.memoryRegions[this.memoryRegions.findIndex((region) => (address % 0x3F20) >= region.start && (address % 0x3F20) <= region.end)]; //finds the correct ram object from a given memory address
+        const memoryRegion = this.getMemoryRegion(address); //finds the correct ram object from a given memory address
         if (!memoryRegion) {
             //console.log(`Attempted write to invalid PPU memory address: ${Util.hex(address)}`);
             return;
@@ -170,55 +174,51 @@ export class PPU {
         }
     }
 
-    private getSpriteZeroScanline() : number { // not pixel perfect, but good enough for now
-        const spriteX = this.oam.read(3);
-        const spriteY = this.oam.read(0);
-        
-        return spriteY;
+    private readFromMem(address: number): number {
+        const memoryRegion = this.getMemoryRegion(address);
+        if (!memoryRegion) {
+            //console.log(`Attempted read from invalid PPU memory address: ${Util.hex(address)}`);
+            return;
+        }
+
+        return memoryRegion.ram.read(address - memoryRegion.start);
     }
 
     public tick() {
         this.cycle++;
 
-        if (this.scanline === this.oam.read(0)) {
+        if (this.scanline === this.oam.read(0) + 8) {
             this.spriteZeroHit = true;
         }
 
-        if (this.cycle > 340) {
+        if (this.cycle < 340) return;
 
-            this.cycle = 0;
-            this.scanline++;
+        this.cycle = 0;
+        this.scanline++;
 
-            if (this.scanline === 241) { // VBLANK START
-                this.inVblank = true;
-                this.draw();
+        if (this.scanline <= 240) {
 
-                if (this.NMIenabled) {
-                    //console.log("NMI triggered");
-                    this.NMI();
-                }
+            this.drawScanline(this.scanline);
 
+        } else if (this.scanline === 241) { // VBLANK START
+
+            this.inVblank = true;
+
+            if (this.NMIenabled) {
+                //console.log("NMI triggered");
+                this.NMI();
             }
 
-            if (this.scanline > 261) { // VBLANK END
-                this.inVblank = false;
-                this.scanline = 0;
-                this.spriteZeroHit = false;
-            }
+        } else if (this.scanline > 261) { // VBLANK END
+            this.inVblank = false;
+            this.scanline = 0;
+            this.spriteZeroHit = false;
         }
 
     }
 
     public NMI() {
         this.NMIhandler();
-    }
-
-    public debugDumpNametable(nametableIndex: number) {
-        const bytes = [];
-        for (let i = 0; i < 64; i++) {
-            bytes.push(Util.hex(this.nameTables[nametableIndex].read(i)));
-        }
-        console.log(bytes.join(' '));
     }
 
     public readRegister(address: number) {
@@ -232,8 +232,8 @@ export class PPU {
                     this.backgroundAddr,
                     this.spriteAddr,
                     this.vramIncrement,
-                    Boolean(Util.getBit(this.currentNametable, 1)),
-                    Boolean(Util.getBit(this.currentNametable, 0))
+                    Boolean(Util.getBit(this.currentNametableIndex, 1)),
+                    Boolean(Util.getBit(this.currentNametableIndex, 0))
                 ]);
 
             case reg.PPUSTATUS:
@@ -273,7 +273,10 @@ export class PPU {
             case reg.OAMDATA:
                 return this.oam.read(this.oamAddr);
             case reg.PPUDATA:
-                return 0; // Not implemented yet
+                const value = this.ppuDataBuffer;
+                this.ppuDataBuffer = this.readFromMem(this.currentAddr);
+                this.currentAddr += this.vramIncrement ? 32 : 1; // auto increment ppu write address while also accounting for the increment mode
+                return value;
             case reg.PPUSCROLL:
                 return 0; // Not readable
             default:
@@ -282,8 +285,6 @@ export class PPU {
                 break;
         }
     }
-
-    private nmiToggleCounter: number = 0;
 
     public writeRegister(value: number, address: number) {
 
@@ -298,7 +299,7 @@ export class PPU {
                 this.backgroundAddr = Boolean(Util.getBit(value, 4));
                 this.spriteAddr = Boolean(Util.getBit(value, 3));
                 this.vramIncrement = Boolean(Util.getBit(value, 2));
-                this.currentNametable = value & 3;
+                this.currentNametableIndex = value & 3;
 
                 break;
 
@@ -338,11 +339,13 @@ export class PPU {
             case reg.PPUADDR:
 
                 if (this.writeCounter === 0) { // hi byte
-                    this.writeAddr = 0; // reset it
-                    this.writeAddr |= (value << 8);
+                    this.currentAddr = 0; // reset it
+                    this.currentAddr |= (value << 8);
                 } else if (this.writeCounter === 1) { // lo byte
-                    this.writeAddr |= value;
+                    this.currentAddr |= value;
                 }
+
+                this.ppuDataBuffer = this.readFromMem(this.currentAddr); // read the value at the address into the buffer, so that the next read from PPUDATA will return this value
 
                 this.writeCounter++;
                 if (this.writeCounter > 1) this.writeCounter = 0;
@@ -351,10 +354,8 @@ export class PPU {
 
             case reg.PPUDATA:
 
-                if (this.writeAddr !== null) {
-                    this.writeToMem(value, this.writeAddr);
-                    this.writeAddr += this.vramIncrement ? 32 : 1; // auto increment ppu write address while also accounting for the increment mode
-                }
+                this.writeToMem(value, this.currentAddr);
+                this.currentAddr += this.vramIncrement ? 32 : 1; // auto increment ppu write address while also accounting for the increment mode
 
                 break;
 
@@ -364,21 +365,16 @@ export class PPU {
         }
     }
 
-    private drawPixel(x: number, y: number, r: number, g: number, b: number, scaleOverrideX?: number, scaleOverrideY?: number) {
-        const scaleX = scaleOverrideX | this.outputScaleX;
-        const scaleY = scaleOverrideY | this.outputScaleY;
-        for (let dx = 0; dx < scaleX; dx++) {
-            for (let dy = 0; dy < scaleY; dy++) {
-                let index = ((y * scaleY + dy) * this.ctx.canvas.width + (x * scaleX + dx)) * 4;
-                this.frameBuffer.data[index] = r; // red
-                this.frameBuffer.data[index + 1] = g; // green
-                this.frameBuffer.data[index + 2] = b; // blue
-                this.frameBuffer.data[index + 3] = 255; // alpha
-            }
-        }
+    private drawPixel(x: number, y: number, r: number, g: number, b: number, priority: number = 0) {
+        const destBuffer = priority === 1 ? this.bottomBuffer : this.topBuffer;
+        const index = (y * destBuffer.width + x) * 4; // multiply by 4 because each pixel has 4 values (RGBA)
+        destBuffer.data[index] = r; // red
+        destBuffer.data[index + 1] = g; // green
+        destBuffer.data[index + 2] = b; // blue
+        destBuffer.data[index + 3] = 255; // alpha
     }
 
-    private drawTile(tile: number, xPos: number, yPos: number, palette: Uint8Array, flipH: boolean, flipV: boolean, priority: boolean, patternTable: RAM, backgroundTransparent: boolean) {
+    private drawTile(tile: number, xPos: number, yPos: number, palette: Uint8Array, flipH: boolean, flipV: boolean, patternTable: RAM, backgroundTransparent: boolean, priority: number) {
         //pattern tables start at address 0 in PPU memory
         const chrIndex = tile * 16;
 
@@ -413,19 +409,26 @@ export class PPU {
                 const x = xPos + bi;
                 const y = yPos + ri;
 
+                const priorityOverride = (colorIndex === 0) ? 1 : priority; // if pixel is transparent, force it to bottom layer
+
                 // TRANSPARENCY
-                if (!(colorIndex === 0 && backgroundTransparent)) this.drawPixel(x, y, color[0], color[1], color[2]) //this.ctx.fillRect(x + b, y, 1, 1);
+                if (!(colorIndex === 0 && backgroundTransparent)) this.drawPixel(x, y, color[0], color[1], color[2], priorityOverride);
             }
 
         }
     }
 
-    private drawSprites() {
+    private drawSpritesOnScanline(scanline: number) { // not pixel perfect, but good enough for now
         for (let spriteIndex = 0; (spriteIndex + 4) <= this.oam.getSize(); spriteIndex += 4) {
 
-            const tileIndex = this.oam.read(spriteIndex + 1);
             const xPos = this.oam.read(spriteIndex + 3);
             const yPos = this.oam.read(spriteIndex);
+
+            if (scanline === yPos + 8) continue; // skip sprites that are not on this scanline
+
+            //if (!this.showLeftSprites && xPos === 0 && yPos === 0) continue;
+
+            const tileIndex = this.oam.read(spriteIndex + 1);
             const attributes = this.oam.read(spriteIndex + 2);
 
             const paletteIndex = (attributes & 3) * 4; // each palette is 4 bytes long, so multiply the index by 4 to get the starting address of the palette in sprite palette memory
@@ -437,82 +440,81 @@ export class PPU {
 
             const flipH = Boolean(Util.getBit(attributes, 6));
             const flipV = Boolean(Util.getBit(attributes, 7));
+            const priority = Util.getBit(attributes, 5);
 
             //if (tileIndex !== 0) console.log(`Drawing sprite $${Util.hex(tileIndex)} at X: ${Util.hex(xPos)} Y: ${Util.hex(yPos)}`);
-            this.drawTile(tileIndex, xPos, yPos, palette, flipH, flipV, false, this.patternTables[this.spriteAddr ? 1 : 0], true);
+            this.drawTile(tileIndex, xPos, yPos, palette, flipH, flipV, this.patternTables[this.spriteAddr ? 1 : 0], true, priority);
         }
     }
 
-    private drawBackground() {
+    private drawBackgroundOnScanline(scanline: number) { // not pixel perfect, but good enough for now
+        
+        if (scanline % 8 !== 7) return; // only draw the background on the last scanline of each row of tiles
 
-        let nametable = this.nameTables[this.currentNametable];
-        const debugAttr = [];
+        const rowIndex = Math.floor(scanline / 8);
+        const nametable = this.nameTables[this.currentNametableIndex];
 
-        for (let i = 0; i < nametable.getSize(); i++) {
-            const tileIndex = nametable.read(i);
+        for (let i = 32 * rowIndex; i < 32 * (rowIndex + 1); i++) { // 32 tiles per row
+
             let xPos = (i % 32) * 8;
             let yPos = Math.floor(i / 32) * 8;
+
+            //if (!this.showLeftBackground && xPos === 0 && yPos === 0) continue;
+
+            xPos -= this.scrollX;
+            yPos -= this.scrollY;
+
+            const tileIndex = nametable.read(i);
             const attrX = Math.floor(i / 4) % 8; // each attr byte controls a 4x4 tile region
             const attrY = Math.floor(i / 128);
             const quadX = Math.floor(i / 2) % 2; // 0 or 1
             const quadY = Math.floor(i / 64) % 2;
             const attrIndex = (attrY * 8) + attrX;
             const quadIndex = (quadY << 1) | quadX;
-            const attr = this.attrTables[this.currentNametable].read(attrIndex);
+            const attr = this.attrTables[this.currentNametableIndex].read(attrIndex);
             const paletteIndex = ((attr >> (quadIndex * 2)) & 3) * 4; // each quadrant of the attribute byte is 2 bits that specifies the palette index for that quadrant, so shift the attribute byte to get the correct quadrant and then mask with 3 to get the last 2 bits for the palette index
             const palette = new Uint8Array(4);
-            palette[0] = this.backgroundPalettes.read(0x00); // global background color
+            palette[0] = this.backgroundPalettes.read(paletteIndex);
             palette[1] = this.backgroundPalettes.read(paletteIndex + 1);
             palette[2] = this.backgroundPalettes.read(paletteIndex + 2);
             palette[3] = this.backgroundPalettes.read(paletteIndex + 3);
 
-            xPos -= this.scrollX;
-            yPos -= this.scrollY;
-
-            this.drawTile(tileIndex, xPos, yPos, palette, false, false, false, this.patternTables[this.backgroundAddr ? 1 : 0], false);
-            debugAttr.push({ x: xPos, y: yPos, quadX, quadY, paletteIndex, attrX, attrY });
+            this.drawTile(tileIndex, xPos, yPos, palette, false, false, this.patternTables[this.backgroundAddr ? 1 : 0], false, 0);
         }
-
-        return debugAttr;
-    }
-
-    public draw() {
-
-        const debugAttr = this.drawBackground();
-        this.drawSprites();
-
-        this.ctx.putImageData(this.frameBuffer, 0, 0);
-        this.frameBuffer.data.fill(0);
-
-        for (let c = 0; c < this.backgroundPalettes.getSize(); c++) {
-            let colorRGB = colorMap[this.backgroundPalettes.read(c)];
-            let color = '#' + Util.hex(colorRGB[0]) + Util.hex(colorRGB[1]) + Util.hex(colorRGB[2]);
-            this.ctx.fillStyle = color;
-            this.ctx.fillRect(c * 16, 0, 16, 16);
-        }
-        /*for (let i=0;i<debugAttr.length;i++){
-            const obj = debugAttr[i];
-            this.ctx.globalAlpha = 0.9;
-            if (obj.quadX === 0 && obj.quadY === 0) this.ctx.fillStyle='red';
-            if (obj.quadX === 1 && obj.quadY === 0) this.ctx.fillStyle='green';
-            if (obj.quadX === 0 && obj.quadY === 1) this.ctx.fillStyle='yellow';
-            if (obj.quadX === 1 && obj.quadY === 1) this.ctx.fillStyle='pink';
-            this.ctx.fillStyle='#000';
-            this.ctx.font='Arial 30px';
-            this.ctx.globalAlpha = 1;
-            this.ctx.fillStyle = 'white';
-            this.ctx.fillText(String(obj.paletteIndex/4), obj.x * this.outputScaleX, obj.y * this.outputScaleY);
-        }*/
-
-        /*for (let i = 0; i < this.nameTables[0].getSize(); i++) {
-            const tileIndex = this.nameTables[0].read(i);
-            const xPos = (i % 32) * 8;
-            const yPos = Math.floor(i / 32) * 8;
-            this.ctx.fillStyle = '#FFF';
-            this.ctx.font = 'Arial 30px';
-            this.ctx.fillText(Util.hex(tileIndex), xPos * this.outputScaleX, yPos * this.outputScaleY);
-        }*/
 
     }
 
+    private drawScanline(scanline: number) { // approximate, not pixel perfect
+
+        if (this.scanline < 5) {
+            for (let i = 0; i < this.backgroundPalettes.getSize(); i++) {
+                const color = colorMap[this.backgroundPalettes.read(i)];
+                for (let j = 0; j < 5; j++) this.drawPixel(i * 5 + j, scanline, color[0], color[1], color[2], 0);
+            }
+        }
+
+        this.drawBackgroundOnScanline(scanline);
+        this.drawSpritesOnScanline(scanline);
+
+    }
+
+    public getFrameBuffer() : ImageData {
+
+        // combine the two layers
+        for (let i = 0; i < this.frameBuffer.data.length; i += 4) {
+            // if topBuffer pixel is transparent, draw bottomBuffer pixel
+            const destBuffer = (this.topBuffer.data[i + 3] === 0) ? this.bottomBuffer : this.topBuffer;
+            this.frameBuffer.data[i] = destBuffer.data[i];
+            this.frameBuffer.data[i + 1] = destBuffer.data[i + 1];
+            this.frameBuffer.data[i + 2] = destBuffer.data[i + 2];
+            this.frameBuffer.data[i + 3] = destBuffer.data[i + 3];
+        }
+
+        return this.frameBuffer;
+    }
+
+    public clearFrameBuffer() {
+        this.topBuffer.data.fill(0);
+        this.bottomBuffer.data.fill(0);
+    }
 }

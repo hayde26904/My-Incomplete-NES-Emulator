@@ -2,6 +2,8 @@
 export class Input {
     private keyState : Set<string>;
     private controlStack : Array<number> = [];
+    private controlStackIndex : number = 0;
+    private latchBitmask : number = 0;
 
     constructor(){
         this.keyState = new Set<string>();
@@ -13,7 +15,7 @@ export class Input {
         });
     }
 
-    public prepareControlStack(){
+    public pollController(){
         this.controlStack = [
             +this.keyState.has("Space"),
             +this.keyState.has("ShiftLeft"),
@@ -26,11 +28,19 @@ export class Input {
         ];
     }
 
-    public shiftControlStack() : number {
-        if(this.controlStack.length === 0){
-            return 1;
+    public read() : number {
+        
+        const value = this.controlStack[this.controlStackIndex];
+        this.controlStackIndex = (this.controlStackIndex + 1) % this.controlStack.length;
+        return value;
+    }
+
+    public write(bitmask : number){
+        this.latchBitmask = bitmask;
+
+        if (this.latchBitmask === 1) {
+            this.pollController();
         }
-        return this.controlStack.shift();
     }
 
 
