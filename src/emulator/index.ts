@@ -88,7 +88,7 @@ document.getElementById('romInput')?.addEventListener('change', (event) => {
 
 function loadProgram(rom: ROM) {
 
-  const romInfo = headerParser.parseiNES1(rom);
+  const romInfo = headerParser.parseRomHeader(rom);
   const romBytes = rom.getMemory().slice(16);
   const prg = new ROM(romBytes.slice(0, romInfo.prgRomSize));
   const chr = new ROM(romBytes.slice(romInfo.prgRomSize, romBytes.length - 1))
@@ -106,9 +106,9 @@ function loadProgram(rom: ROM) {
   bus.setMapper(mapper);
   console.log(mapper);
 
-  console.log(`Mirroring mode: ${romInfo.nametableMirroring === headerParser.NametableMirroringTypes.HORIZONTAL ? "Horizontal" : "Vertical"}`);
+  console.log(`Nametable Arrangement: ${romInfo.nametableArrangement === headerParser.NametableArrangementTypes.HORIZONTAL ? "Horizontal" : "Vertical"}`);
 
-  ppu.setMirroringMode(romInfo.nametableMirroring);
+  ppu.setNametableArrangement(romInfo.nametableArrangement);
 
   cpu.reset();
   ppu.reset();

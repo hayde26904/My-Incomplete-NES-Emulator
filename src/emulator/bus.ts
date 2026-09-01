@@ -34,11 +34,7 @@ export class Bus {
 
         } else if(address < 0x4000){
 
-            try {
-                return this.ppu.readRegister(0x2000 + (address % 8)); // mirroring every 8 bytes
-            } catch(err){
-                throw new Error(`PC: ${Util.hex(this.cpu.getPC())}  error reading from PPU register: ${Util.hex(address)}`);
-            }
+            return this.ppu.readRegister(0x2000 + (address % 8)); // mirroring every 8 bytes
 
         } else if(address === reg.JOY1) {
 
@@ -60,12 +56,7 @@ export class Bus {
 
         } else if(address < 0x4000){
 
-            try {
-                this.ppu.writeRegister(value, 0x2000 + (address % 8));
-            } catch(err){
-                //console.log(err.stack);
-                //throw new Error(`PC: ${Util.hex(this.cpu.getPC())}  error writing ${Util.hex(value)} to PPU register: ${Util.hex(address)}`);
-            }
+            this.ppu.writeRegister(value, 0x2000 + (address % 8));
 
         } else if(address === reg.OAMDMA){ //OAM DMA
 

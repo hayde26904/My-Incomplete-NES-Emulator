@@ -27,13 +27,16 @@ const colorMap = [
     [248, 216, 120], [216, 248, 120], [184, 248, 184], [184, 248, 216], [0, 252, 252], [248, 216, 248], [0, 0, 0], [0, 0, 0]
 ];
 
-type MemoryWriteHandler = (value: number, address: number) => void;
-
 interface MemoryRegion {
     start: number;
     end: number;
-    ram: RAM;
-    onWrite?: MemoryWriteHandler;
+    getRAM: () => RAM;
+}
+
+enum RenderPriority {
+    DEBUG=2,
+    TOP=0,
+    BOTTOM=1
 }
 
 const SCREEN_WIDTH = 256;
@@ -42,38 +45,37 @@ const SCREEN_HEIGHT = 240;
 export class PPU {
 
     private frameBuffer: ImageData = new ImageData(SCREEN_WIDTH, SCREEN_HEIGHT);
+    private debugBuffer: ImageData = new ImageData(SCREEN_WIDTH, SCREEN_HEIGHT);
     private topBuffer: ImageData = new ImageData(SCREEN_WIDTH, SCREEN_HEIGHT);
     private bottomBuffer: ImageData = new ImageData(SCREEN_WIDTH, SCREEN_HEIGHT);
+
     private bus: Bus;
     private NMIhandler: CallableFunction;
+
     private patternTables: Array<RAM> = [new RAM(0x1000), new RAM(0x1000)];
-    private nameTables: Array<RAM> = [new RAM(0x3C0), new RAM(0x3C0), new RAM(0x3C0), new RAM(0x3C0)];
-    private attrTables: Array<RAM> = [new RAM(0x40), new RAM(0x40), new RAM(0x40), new RAM(0x40)];
+    private nameTables: Array<RAM> = [new RAM(0x400), new RAM(0x400), new RAM(0x400), new RAM(0x400)];
+    private nameTableArrangement: Array<number> = [0, 1, 2, 3]; // order of the name tables in memory, will be set based on the mirroring mode
     private backgroundPalettes: RAM = new RAM(0x10);
     private spritePalettes: RAM = new RAM(0x10);
     private oam: RAM = new RAM(0x100);
 
     // maps different RAM to different addresses
     private memoryRegions: MemoryRegion[] = [
-        { start: 0x0000, end: 0x0FFF, ram: this.patternTables[0] },
-        { start: 0x1000, end: 0x1FFF, ram: this.patternTables[1] },
-        { start: 0x2000, end: 0x23BF, ram: this.nameTables[0] },
-        { start: 0x23C0, end: 0x23FF, ram: this.attrTables[0] },
-        { start: 0x2400, end: 0x27BF, ram: this.nameTables[1] },
-        { start: 0x27C0, end: 0x27FF, ram: this.attrTables[1] },
-        { start: 0x2800, end: 0x2BBF, ram: this.nameTables[2] },
-        { start: 0x2BC0, end: 0x2BFF, ram: this.attrTables[2] },
-        { start: 0x2C00, end: 0x2FBF, ram: this.nameTables[3] },
-        { start: 0x2FC0, end: 0x2FFF, ram: this.attrTables[3] },
-        { start: 0x3F00, end: 0x3F0F, ram: this.backgroundPalettes },
-        { start: 0x3F10, end: 0x3F1F, ram: this.spritePalettes }
+        { start: 0x0000, end: 0x0FFF, getRAM: () => this.patternTables[0] },
+        { start: 0x1000, end: 0x1FFF, getRAM: () => this.patternTables[1] },
+        { start: 0x2000, end: 0x23FF, getRAM: () => this.nameTables[this.nameTableArrangement[0]] },
+        { start: 0x2400, end: 0x27FF, getRAM: () => this.nameTables[this.nameTableArrangement[1]] },
+        { start: 0x2800, end: 0x2BFF, getRAM: () => this.nameTables[this.nameTableArrangement[2]] },
+        { start: 0x2C00, end: 0x2FFF, getRAM: () => this.nameTables[this.nameTableArrangement[3]] },
+        { start: 0x3F00, end: 0x3F0F, getRAM: () => this.backgroundPalettes },
+        { start: 0x3F10, end: 0x3F1F, getRAM: () => this.spritePalettes }
     ];
 
-    private mirroringMode: number = 0; // 0 horizontal 1 vertical
-
     private currentAddr: number = 0;
-
+    private currentNametableIndex: number = 0;
     private writeCounter: number = 0;
+
+    private tempScrollX: number = 0;
     private scrollX: number = 0;
     private scrollY: number = 0;
 
@@ -82,10 +84,10 @@ export class PPU {
     private NMIenabled: boolean = false;
     private masterSlave: boolean = false;
     private spriteSizeMode: boolean = false;
-    private backgroundAddr: boolean = false;
-    private spriteAddr: boolean = false;
+    private backgroundPatternTable: number = 0;
+    private spritePatternTable: number = 0;
     private vramIncrement: boolean = false;
-    private currentNametableIndex: number = 0;
+    private baseNametableIndex: number = 0;
 
     private emphasizeBlue: boolean = false;
     private emphasizeGreen: boolean = false;
@@ -101,7 +103,6 @@ export class PPU {
     private spriteOverflow: boolean = false;
 
     private ppuDataBuffer: number = 0;
-    private paletteBuffer = new Uint8Array(4);
 
     private cycle: number = 0;
     private scanline: number = 0;
@@ -129,8 +130,17 @@ export class PPU {
         this.bus = bus;
     }
 
-    public setMirroringMode(mode: number) {
-        this.mirroringMode = mode;
+    public setNametableArrangement(mode: number) {
+
+        switch (mode) {
+            case 0: // vertical
+                this.nameTableArrangement = [0, 0, 1, 1];
+                break;
+            case 1: // horizontal
+                this.nameTableArrangement = [0, 1, 0, 1];
+                break;
+        }
+
     }
 
     public loadCHR(rom: ROM) {
@@ -156,39 +166,38 @@ export class PPU {
     }
 
     private getMemoryRegion(address: number): MemoryRegion {
-        return this.memoryRegions[this.memoryRegions.findIndex((region) => (address % 0x3F20) >= region.start && (address % 0x3F20) <= region.end)];
+        return this.memoryRegions.find((region) => (address % 0x3F20) >= region.start && (address % 0x3F20) <= region.end);
     }
 
 
-    private writeToMem(value: number, address: number, runCallbacks: boolean = true) { // set runCallbacks to false when running in a callback to prevent unwanted recursion
-        //console.log(`attempting data write of ${Util.hex(value)} to ${Util.hex(address)}`);
+    private writeToMem(value: number, address: number) {
         const memoryRegion = this.getMemoryRegion(address); //finds the correct ram object from a given memory address
-        if (!memoryRegion) {
-            //console.log(`Attempted write to invalid PPU memory address: ${Util.hex(address)}`);
-            return;
-        }
-        memoryRegion.ram.write(value, address - memoryRegion.start); // converts the address to an index to index the ram object
+        if (!memoryRegion) return;
 
-        if (memoryRegion.onWrite && runCallbacks) {
-            memoryRegion.onWrite(value, address);
-        }
+        const ram = memoryRegion.getRAM();
+        ram.write(value, address - memoryRegion.start); // converts the address to an index to index the ram object
     }
 
     private readFromMem(address: number): number {
         const memoryRegion = this.getMemoryRegion(address);
         if (!memoryRegion) {
-            //console.log(`Attempted read from invalid PPU memory address: ${Util.hex(address)}`);
             return;
         }
 
-        return memoryRegion.ram.read(address - memoryRegion.start);
+        const ram = memoryRegion.getRAM();
+        return ram.read(address - memoryRegion.start);
     }
 
     public tick() {
         this.cycle++;
 
-        if (this.scanline === this.oam.read(0) + 8) {
+        if (this.scanline === this.oam.read(0) + 8 && this.cycle == this.oam.read(3) + 8) { // approximate
             this.spriteZeroHit = true;
+            if (this.baseNametableIndex === 1) console.log("SPRITE ZERO HIT WITH NAMETABLE 1");
+        }
+
+        if (this.cycle === 257) {
+            this.currentNametableIndex = this.baseNametableIndex;
         }
 
         if (this.cycle < 340) return;
@@ -205,14 +214,13 @@ export class PPU {
             this.inVblank = true;
 
             if (this.NMIenabled) {
-                //console.log("NMI triggered");
                 this.NMI();
             }
 
         } else if (this.scanline > 261) { // VBLANK END
             this.inVblank = false;
-            this.scanline = 0;
             this.spriteZeroHit = false;
+            this.scanline = 0;
         }
 
     }
@@ -229,11 +237,11 @@ export class PPU {
                     this.NMIenabled,
                     this.masterSlave,
                     this.spriteSizeMode,
-                    this.backgroundAddr,
-                    this.spriteAddr,
+                    Boolean(this.backgroundPatternTable),
+                    Boolean(this.spritePatternTable),
                     this.vramIncrement,
-                    Boolean(Util.getBit(this.currentNametableIndex, 1)),
-                    Boolean(Util.getBit(this.currentNametableIndex, 0))
+                    Boolean(Util.getBit(this.baseNametableIndex, 1)),
+                    Boolean(Util.getBit(this.baseNametableIndex, 0))
                 ]);
 
             case reg.PPUSTATUS:
@@ -250,8 +258,6 @@ export class PPU {
                     false,
                     false
                 ]);
-
-                this.inVblank = false; // reading this register clears the vblank flag
 
                 return mask;
 
@@ -280,7 +286,6 @@ export class PPU {
             case reg.PPUSCROLL:
                 return 0; // Not readable
             default:
-                //throw new Error(`Attempted read from invalid PPU register address: ${Util.hex(address)}`);
                 return 0;
                 break;
         }
@@ -288,18 +293,26 @@ export class PPU {
 
     public writeRegister(value: number, address: number) {
 
-        //console.log(`attempting to write ${Util.hex(value)} to PPU reg ${Util.hex(address)}`);
-
         switch (address) {
             case reg.PPUCTRL:
+
+                const tempIndex = this.baseNametableIndex;
 
                 this.NMIenabled = Boolean(Util.getBit(value, 7));
                 this.masterSlave = Boolean(Util.getBit(value, 6));
                 this.spriteSizeMode = Boolean(Util.getBit(value, 5));
-                this.backgroundAddr = Boolean(Util.getBit(value, 4));
-                this.spriteAddr = Boolean(Util.getBit(value, 3));
+                this.backgroundPatternTable = Util.getBit(value, 4);
+                this.spritePatternTable = Util.getBit(value, 3);
                 this.vramIncrement = Boolean(Util.getBit(value, 2));
-                this.currentNametableIndex = value & 3;
+                this.baseNametableIndex = value & 3;
+
+                /*if (this.baseNametableIndex !== tempIndex && !this.spriteZeroHit) {
+                    this.drawPixel(this.cycle, this.scanline, 0, 255, 0, RenderPriority.DEBUG);
+                    this.drawPixel(this.cycle + 1, this.scanline, 0, 255, 0, RenderPriority.DEBUG);
+                    this.drawPixel(this.cycle, this.scanline + 1, 0, 255, 0, RenderPriority.DEBUG);
+                    this.drawPixel(this.cycle + 1, this.scanline + 1, 0, 255, 0, RenderPriority.DEBUG);
+                    console.log(`nametable changed ${this.scanline}`);
+                }*/
 
                 break;
 
@@ -327,9 +340,13 @@ export class PPU {
             case reg.PPUSCROLL:
 
                 if (this.writeCounter === 0) {
+                    
                     this.scrollX = value;
+
                 } else if (this.writeCounter === 1) {
+
                     this.scrollY = value;
+
                 }
 
                 this.writeCounter++;
@@ -365,8 +382,22 @@ export class PPU {
         }
     }
 
-    private drawPixel(x: number, y: number, r: number, g: number, b: number, priority: number = 0) {
-        const destBuffer = priority === 1 ? this.bottomBuffer : this.topBuffer;
+    private drawPixel(x: number, y: number, r: number, g: number, b: number, priority: RenderPriority = RenderPriority.TOP) {
+        
+        let destBuffer;
+
+        switch (priority) {
+            case RenderPriority.BOTTOM:
+                destBuffer = this.bottomBuffer;
+                break;
+            case RenderPriority.TOP:
+                destBuffer = this.topBuffer;
+                break;
+            case RenderPriority.DEBUG:
+                destBuffer = this.debugBuffer;
+                break;
+        }
+
         const index = (y * destBuffer.width + x) * 4; // multiply by 4 because each pixel has 4 values (RGBA)
         destBuffer.data[index] = r; // red
         destBuffer.data[index + 1] = g; // green
@@ -418,7 +449,7 @@ export class PPU {
         }
     }
 
-    private drawSpritesOnScanline(scanline: number) { // not pixel perfect, but good enough for now
+    private drawSpritesScanline(scanline: number) {
         for (let spriteIndex = 0; (spriteIndex + 4) <= this.oam.getSize(); spriteIndex += 4) {
 
             const xPos = this.oam.read(spriteIndex + 3);
@@ -443,16 +474,16 @@ export class PPU {
             const priority = Util.getBit(attributes, 5);
 
             //if (tileIndex !== 0) console.log(`Drawing sprite $${Util.hex(tileIndex)} at X: ${Util.hex(xPos)} Y: ${Util.hex(yPos)}`);
-            this.drawTile(tileIndex, xPos, yPos, palette, flipH, flipV, this.patternTables[this.spriteAddr ? 1 : 0], true, priority);
+            this.drawTile(tileIndex, xPos, yPos, palette, flipH, flipV, this.patternTables[this.spritePatternTable], true, priority);
         }
     }
 
-    private drawBackgroundOnScanline(scanline: number) { // not pixel perfect, but good enough for now
-        
+    private drawBackgroundScanline(scanline: number) {
         if (scanline % 8 !== 7) return; // only draw the background on the last scanline of each row of tiles
 
         const rowIndex = Math.floor(scanline / 8);
         const nametable = this.nameTables[this.currentNametableIndex];
+        const attrTableStartIndex = 0x3C0; // attribute table starts at 0x3C0 in nametable memory
 
         for (let i = 32 * rowIndex; i < 32 * (rowIndex + 1); i++) { // 32 tiles per row
 
@@ -469,32 +500,25 @@ export class PPU {
             const attrY = Math.floor(i / 128);
             const quadX = Math.floor(i / 2) % 2; // 0 or 1
             const quadY = Math.floor(i / 64) % 2;
-            const attrIndex = (attrY * 8) + attrX;
+            const attrIndex = attrTableStartIndex + (attrY * 8) + attrX;
             const quadIndex = (quadY << 1) | quadX;
-            const attr = this.attrTables[this.currentNametableIndex].read(attrIndex);
+            const attr = nametable.read(attrIndex);
             const paletteIndex = ((attr >> (quadIndex * 2)) & 3) * 4; // each quadrant of the attribute byte is 2 bits that specifies the palette index for that quadrant, so shift the attribute byte to get the correct quadrant and then mask with 3 to get the last 2 bits for the palette index
             const palette = new Uint8Array(4);
-            palette[0] = this.backgroundPalettes.read(paletteIndex);
+            palette[0] = this.backgroundPalettes.read(0); // universal background color
             palette[1] = this.backgroundPalettes.read(paletteIndex + 1);
             palette[2] = this.backgroundPalettes.read(paletteIndex + 2);
             palette[3] = this.backgroundPalettes.read(paletteIndex + 3);
 
-            this.drawTile(tileIndex, xPos, yPos, palette, false, false, this.patternTables[this.backgroundAddr ? 1 : 0], false, 0);
+            this.drawTile(tileIndex, xPos, yPos, palette, false, false, this.patternTables[this.backgroundPatternTable], false, 0);
         }
 
     }
 
-    private drawScanline(scanline: number) { // approximate, not pixel perfect
+    private drawScanline(scanline: number) {
 
-        if (this.scanline < 5) {
-            for (let i = 0; i < this.backgroundPalettes.getSize(); i++) {
-                const color = colorMap[this.backgroundPalettes.read(i)];
-                for (let j = 0; j < 5; j++) this.drawPixel(i * 5 + j, scanline, color[0], color[1], color[2], 0);
-            }
-        }
-
-        this.drawBackgroundOnScanline(scanline);
-        this.drawSpritesOnScanline(scanline);
+        this.drawBackgroundScanline(scanline);
+        this.drawSpritesScanline(scanline);
 
     }
 
@@ -503,7 +527,10 @@ export class PPU {
         // combine the two layers
         for (let i = 0; i < this.frameBuffer.data.length; i += 4) {
             // if topBuffer pixel is transparent, draw bottomBuffer pixel
-            const destBuffer = (this.topBuffer.data[i + 3] === 0) ? this.bottomBuffer : this.topBuffer;
+            let destBuffer = (this.topBuffer.data[i + 3] === 0) ? this.bottomBuffer : this.topBuffer;
+
+            if (this.debugBuffer.data[i + 3] !== 0) destBuffer = this.debugBuffer;
+
             this.frameBuffer.data[i] = destBuffer.data[i];
             this.frameBuffer.data[i + 1] = destBuffer.data[i + 1];
             this.frameBuffer.data[i + 2] = destBuffer.data[i + 2];
