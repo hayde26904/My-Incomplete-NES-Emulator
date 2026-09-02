@@ -34,9 +34,9 @@ interface MemoryRegion {
 }
 
 enum RenderPriority {
-    DEBUG=2,
-    TOP=0,
-    BOTTOM=1
+    DEBUG = 2,
+    TOP = 0,
+    BOTTOM = 1
 }
 
 const SCREEN_WIDTH = 256;
@@ -72,12 +72,18 @@ export class PPU {
     ];
 
     private currentAddr: number = 0;
-    private currentNametableIndex: number = 0;
     private writeCounter: number = 0;
 
-    private tempScrollX: number = 0;
-    private scrollX: number = 0;
-    private scrollY: number = 0;
+    private tempBaseNametableIndex: number = 0;
+    private tempCoarseX: number = 0;
+    private tempCoarseY: number = 0;
+    private tempFineY: number = 0;
+
+    private fineX: number = 0;
+    private coarseX: number = 0;
+    private fineY: number = 0;
+    private coarseY: number = 0
+
 
     private oamAddr: number = 0;
 
@@ -189,27 +195,44 @@ export class PPU {
     }
 
     public tick() {
+        this.cycleHandler();
+
         this.cycle++;
 
-        if (this.scanline === this.oam.read(0) + 8 && this.cycle == this.oam.read(3) + 8) { // approximate
+        if (this.cycle === 256) {
+            this.scanlineHandler();
+        }
+
+        if (this.cycle === 341) {
+            this.cycle = 0;
+
+            if (this.scanline >= 261) {
+                this.scanline = 0;
+            }
+
+            this.scanline++;
+
+        }
+    }
+
+    private cycleHandler() {
+
+        if (this.scanline === this.oam.read(0) + 8 && this.cycle === this.oam.read(3) + 8) { // approximate
             this.spriteZeroHit = true;
-            if (this.baseNametableIndex === 1) console.log("SPRITE ZERO HIT WITH NAMETABLE 1");
         }
 
-        if (this.cycle === 257) {
-            this.currentNametableIndex = this.baseNametableIndex;
+        if (this.scanline < 240 && this.cycle <= 256) {
+            this.drawBackgroundCycle(this.cycle, this.scanline);
+        }
+    }
+
+    private scanlineHandler() {
+
+        if (this.scanline < 240) { // visible scanlines
+            this.drawSpritesScanline(this.scanline);
         }
 
-        if (this.cycle < 340) return;
-
-        this.cycle = 0;
-        this.scanline++;
-
-        if (this.scanline <= 240) {
-
-            this.drawScanline(this.scanline);
-
-        } else if (this.scanline === 241) { // VBLANK START
+        if (this.scanline === 241) { // VBLANK START
 
             this.inVblank = true;
 
@@ -217,10 +240,23 @@ export class PPU {
                 this.NMI();
             }
 
-        } else if (this.scanline > 261) { // VBLANK END
+        } else if (this.scanline >= 261) { // VBLANK END
             this.inVblank = false;
             this.spriteZeroHit = false;
-            this.scanline = 0;
+        }
+    }
+
+    private copyTemp(cycle: number) {
+
+        if (cycle === 257) {
+            this.baseNametableIndex |= this.tempBaseNametableIndex & 1; // only horizontal bit gets transferred
+            this.coarseX = this.tempCoarseX;
+        }
+
+        if (cycle >= 280 && cycle <= 304) { // supposed to copy more than once for some reason
+            this.baseNametableIndex |= this.tempBaseNametableIndex & 2; // only vertical bit gets transferred
+            this.coarseY = this.tempCoarseY;
+            this.fineY = this.tempFineY;
         }
 
     }
@@ -296,23 +332,13 @@ export class PPU {
         switch (address) {
             case reg.PPUCTRL:
 
-                const tempIndex = this.baseNametableIndex;
-
                 this.NMIenabled = Boolean(Util.getBit(value, 7));
                 this.masterSlave = Boolean(Util.getBit(value, 6));
                 this.spriteSizeMode = Boolean(Util.getBit(value, 5));
                 this.backgroundPatternTable = Util.getBit(value, 4);
                 this.spritePatternTable = Util.getBit(value, 3);
                 this.vramIncrement = Boolean(Util.getBit(value, 2));
-                this.baseNametableIndex = value & 3;
-
-                /*if (this.baseNametableIndex !== tempIndex && !this.spriteZeroHit) {
-                    this.drawPixel(this.cycle, this.scanline, 0, 255, 0, RenderPriority.DEBUG);
-                    this.drawPixel(this.cycle + 1, this.scanline, 0, 255, 0, RenderPriority.DEBUG);
-                    this.drawPixel(this.cycle, this.scanline + 1, 0, 255, 0, RenderPriority.DEBUG);
-                    this.drawPixel(this.cycle + 1, this.scanline + 1, 0, 255, 0, RenderPriority.DEBUG);
-                    console.log(`nametable changed ${this.scanline}`);
-                }*/
+                this.tempBaseNametableIndex = value & 3;
 
                 break;
 
@@ -340,12 +366,14 @@ export class PPU {
             case reg.PPUSCROLL:
 
                 if (this.writeCounter === 0) {
-                    
-                    this.scrollX = value;
+
+                    this.tempCoarseX = value >> 3;
+                    this.fineX = value & 7; // fine X is just a special little boy
 
                 } else if (this.writeCounter === 1) {
 
-                    this.scrollY = value;
+                    this.tempCoarseY = value >> 3;
+                    this.tempFineY = value & 7;
 
                 }
 
@@ -383,7 +411,7 @@ export class PPU {
     }
 
     private drawPixel(x: number, y: number, r: number, g: number, b: number, priority: RenderPriority = RenderPriority.TOP) {
-        
+
         let destBuffer;
 
         switch (priority) {
@@ -405,57 +433,51 @@ export class PPU {
         destBuffer.data[index + 3] = 255; // alpha
     }
 
-    private drawTile(tile: number, xPos: number, yPos: number, palette: Uint8Array, flipH: boolean, flipV: boolean, patternTable: RAM, backgroundTransparent: boolean, priority: number) {
+    // draws a nice horizontal slice of tile
+    private drawTileSlice(tile: number, pixelRow: number, xPos: number, yPos: number, palette: Uint8Array, flipH: boolean, flipV: boolean, patternTable: RAM, backgroundTransparent: boolean, priority: number) {
         //pattern tables start at address 0 in PPU memory
         const chrIndex = tile * 16;
 
-        const rowIncrement = flipV ? -1 : 1;
-        const startRow = flipV ? 7 : 0;
+        const ri = pixelRow;
 
         const bitIncrement = flipH ? -1 : 1;
         const startBit = flipH ? 7 : 0;
 
-        for ( // very nice syntax right here
-            let ri = startRow;
-            flipV ? ri >= 0 : ri < 8;
-            ri += rowIncrement
+        const r = flipV ? 7 - ri : ri; // if the tile is flipped vertically, read the rows in reverse order
+        const chrRow = patternTable.read(chrIndex + r);
+        const attrRow = patternTable.read(chrIndex + r + 8);
+
+        for (
+            let bi = startBit;
+            flipH ? bi >= 0 : bi < 8;
+            bi += bitIncrement
         ) {
-            const r = flipV ? 7 - ri : ri; // if the tile is flipped vertically, read the rows in reverse order
-            const chrRow = patternTable.read(chrIndex + r);
-            const attrRow = patternTable.read(chrIndex + r + 8);
+            const b = flipH ? 7 - bi : bi; // if the tile is flipped horizontally, read the bits in reverse order
+            const chrBit = (chrRow >> (7 - b)) & 1;
+            const attrBit = (attrRow >> (7 - b)) & 1;
 
-            for (
-                let bi = startBit;
-                flipH ? bi >= 0 : bi < 8;
-                bi += bitIncrement
-            ) {
-                const b = flipH ? 7 - bi : bi; // if the tile is flipped horizontally, read the bits in reverse order
-                const chrBit = (chrRow >> (7 - b)) & 1;
-                const attrBit = (attrRow >> (7 - b)) & 1;
+            const colorIndex = (attrBit << 1) | chrBit;
+            const colorId = palette[colorIndex];
+            const color = colorMap[colorId];
 
-                const colorIndex = (attrBit << 1) | chrBit;
-                const colorId = palette[colorIndex];
-                const color = colorMap[colorId];
+            const x = xPos + bi;
+            const y = yPos + ri;
 
-                const x = xPos + bi;
-                const y = yPos + ri;
+            const priorityOverride = (colorIndex === 0) ? 1 : priority; // if pixel is transparent, force it to bottom layer
 
-                const priorityOverride = (colorIndex === 0) ? 1 : priority; // if pixel is transparent, force it to bottom layer
-
-                // TRANSPARENCY
-                if (!(colorIndex === 0 && backgroundTransparent)) this.drawPixel(x, y, color[0], color[1], color[2], priorityOverride);
-            }
-
+            // TRANSPARENCY
+            if (!(colorIndex === 0 && backgroundTransparent)) this.drawPixel(x, y, color[0], color[1], color[2], priorityOverride);
         }
     }
 
     private drawSpritesScanline(scanline: number) {
         for (let spriteIndex = 0; (spriteIndex + 4) <= this.oam.getSize(); spriteIndex += 4) {
 
-            const xPos = this.oam.read(spriteIndex + 3);
             const yPos = this.oam.read(spriteIndex);
 
-            if (scanline === yPos + 8) continue; // skip sprites that are not on this scanline
+            if (scanline < yPos || scanline >= (yPos + (this.spriteSizeMode ? 16 : 8))) continue; // if the sprite is not on this scanline, skip it
+
+            const xPos = this.oam.read(spriteIndex + 3);
 
             //if (!this.showLeftSprites && xPos === 0 && yPos === 0) continue;
 
@@ -473,56 +495,51 @@ export class PPU {
             const flipV = Boolean(Util.getBit(attributes, 7));
             const priority = Util.getBit(attributes, 5);
 
+            const slice = scanline - yPos; // the row of the tile to draw, relative to the top of the tile
+
             //if (tileIndex !== 0) console.log(`Drawing sprite $${Util.hex(tileIndex)} at X: ${Util.hex(xPos)} Y: ${Util.hex(yPos)}`);
-            this.drawTile(tileIndex, xPos, yPos, palette, flipH, flipV, this.patternTables[this.spritePatternTable], true, priority);
+            this.drawTileSlice(tileIndex, slice, xPos, yPos, palette, flipH, flipV, this.patternTables[this.spritePatternTable], true, priority);
         }
     }
 
-    private drawBackgroundScanline(scanline: number) {
-        if (scanline % 8 !== 7) return; // only draw the background on the last scanline of each row of tiles
+    private drawBackgroundCycle(cycle: number, scanline: number) {
 
-        const rowIndex = Math.floor(scanline / 8);
-        const nametable = this.nameTables[this.currentNametableIndex];
+        if (cycle % 8 !== 7) return; // only draw on the last cycle of each tile
+
+        const nametable = this.nameTables[this.baseNametableIndex];
         const attrTableStartIndex = 0x3C0; // attribute table starts at 0x3C0 in nametable memory
 
-        for (let i = 32 * rowIndex; i < 32 * (rowIndex + 1); i++) { // 32 tiles per row
+        const rowIndex = Math.floor(scanline / 8);
+        const i = 32 * rowIndex + Math.floor(cycle / 8);
 
-            let xPos = (i % 32) * 8;
-            let yPos = Math.floor(i / 32) * 8;
+        let xPos = (i % 32) * 8;
+        let yPos = Math.floor(i / 32) * 8;
 
-            //if (!this.showLeftBackground && xPos === 0 && yPos === 0) continue;
+        //if (!this.showLeftBackground && xPos === 0 && yPos === 0) continue;
 
-            xPos -= this.scrollX;
-            yPos -= this.scrollY;
+        const tileIndex = nametable.read(i);
+        const attrX = Math.floor(i / 4) % 8; // each attr byte controls a 4x4 tile region
+        const attrY = Math.floor(i / 128);
+        const quadX = Math.floor(i / 2) % 2; // 0 or 1
+        const quadY = Math.floor(i / 64) % 2;
+        const attrIndex = attrTableStartIndex + (attrY * 8) + attrX;
+        const quadIndex = (quadY << 1) | quadX;
+        const attr = nametable.read(attrIndex);
+        const paletteIndex = ((attr >> (quadIndex * 2)) & 3) * 4; // each quadrant of the attribute byte is 2 bits that specifies the palette index for that quadrant, so shift the attribute byte to get the correct quadrant and then mask with 3 to get the last 2 bits for the palette index
+        const palette = new Uint8Array(4);
+        palette[0] = this.backgroundPalettes.read(0); // universal background color
+        palette[1] = this.backgroundPalettes.read(paletteIndex + 1);
+        palette[2] = this.backgroundPalettes.read(paletteIndex + 2);
+        palette[3] = this.backgroundPalettes.read(paletteIndex + 3);
 
-            const tileIndex = nametable.read(i);
-            const attrX = Math.floor(i / 4) % 8; // each attr byte controls a 4x4 tile region
-            const attrY = Math.floor(i / 128);
-            const quadX = Math.floor(i / 2) % 2; // 0 or 1
-            const quadY = Math.floor(i / 64) % 2;
-            const attrIndex = attrTableStartIndex + (attrY * 8) + attrX;
-            const quadIndex = (quadY << 1) | quadX;
-            const attr = nametable.read(attrIndex);
-            const paletteIndex = ((attr >> (quadIndex * 2)) & 3) * 4; // each quadrant of the attribute byte is 2 bits that specifies the palette index for that quadrant, so shift the attribute byte to get the correct quadrant and then mask with 3 to get the last 2 bits for the palette index
-            const palette = new Uint8Array(4);
-            palette[0] = this.backgroundPalettes.read(0); // universal background color
-            palette[1] = this.backgroundPalettes.read(paletteIndex + 1);
-            palette[2] = this.backgroundPalettes.read(paletteIndex + 2);
-            palette[3] = this.backgroundPalettes.read(paletteIndex + 3);
+        const slice = scanline - yPos; // the row of the tile to draw, relative to the top of the tile
 
-            this.drawTile(tileIndex, xPos, yPos, palette, false, false, this.patternTables[this.backgroundPatternTable], false, 0);
-        }
-
-    }
-
-    private drawScanline(scanline: number) {
-
-        this.drawBackgroundScanline(scanline);
-        this.drawSpritesScanline(scanline);
+        this.drawTileSlice(tileIndex, slice, xPos, yPos, palette, false, false, this.patternTables[this.backgroundPatternTable], false, 0);
 
     }
 
-    public getFrameBuffer() : ImageData {
+
+    public getFrameBuffer(): ImageData {
 
         // combine the two layers
         for (let i = 0; i < this.frameBuffer.data.length; i += 4) {

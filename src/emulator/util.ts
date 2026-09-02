@@ -31,8 +31,8 @@ export class Util {
         }
     }
 
-    public static getBit(byte : number, bit : number) : number{
-        return (byte >> bit) & 1;
+    public static getBit(value : number, bit : number) : number {
+        return (value >> bit) & 1;
     }
 
     //bitmask matches order that booleans come in array. true true false false = 1100
