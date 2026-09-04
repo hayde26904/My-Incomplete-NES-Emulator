@@ -84,7 +84,6 @@ export class PPU {
     private fineY: number = 0;
     private coarseY: number = 0
 
-
     private oamAddr: number = 0;
 
     private NMIenabled: boolean = false;
@@ -195,42 +194,73 @@ export class PPU {
     }
 
     public tick() {
-        this.cycleHandler();
+        this.handleCycle();
 
         this.cycle++;
 
         if (this.cycle === 256) {
-            this.scanlineHandler();
-        }
 
-        if (this.cycle === 341) {
+            this.finishVisibleScanline();
+
+        } else if (this.cycle === 341) {
+
+            this.finishScanline();
+
             this.cycle = 0;
 
-            if (this.scanline >= 261) {
+            if (this.scanline > 261) {
                 this.scanline = 0;
+            } else {
+                this.scanline++;
             }
-
-            this.scanline++;
 
         }
     }
 
-    private cycleHandler() {
+    private handleCycle() {
 
         if (this.scanline === this.oam.read(0) + 8 && this.cycle === this.oam.read(3) + 8) { // approximate
             this.spriteZeroHit = true;
         }
 
-        if (this.scanline < 240 && this.cycle <= 256) {
+        if (this.cycle === 257) {
+            this.baseNametableIndex = this.tempBaseNametableIndex & 1; // only horizontal bit gets transferred
+            this.coarseX = this.tempCoarseX;
+        }
+
+        /*if (this.cycle >= 280 && this.cycle <= 304 && this.scanline == 261) { // supposed to copy more than once for some reason
+            this.baseNametableIndex += this.tempBaseNametableIndex & 2; // only vertical bit gets transferred
+            this.coarseY = this.tempCoarseY;
+            this.fineY = this.tempFineY;
+        }*/
+
+        // incrementing coarseX is a cross-scanline operation
+        const shouldIncrementCoarseX =
+            this.scanline % 2 === 0
+                ? this.cycle === 328
+                : this.cycle < 256;
+
+        if (this.cycle % 8 === 0 && shouldIncrementCoarseX) {
+            if (this.coarseX === 31) {
+                this.coarseX = 0;
+                this.baseNametableIndex ^= 1; // toggle horizontal bit of base nametable index
+                // if (this.baseNametableIndex === 0) {
+                //     this.drawPixel(this.cycle, this.scanline, 0, 255, 0, RenderPriority.DEBUG);
+                // } else if (this.baseNametableIndex === 1) {
+                //     this.drawPixel(this.cycle, this.scanline, 255, 0, 0, RenderPriority.DEBUG);
+                // }
+            } else {
+                this.coarseX++;
+            }
+
+        }
+
+        if (this.cycle < 256) {
             this.drawBackgroundCycle(this.cycle, this.scanline);
         }
     }
 
-    private scanlineHandler() {
-
-        if (this.scanline < 240) { // visible scanlines
-            this.drawSpritesScanline(this.scanline);
-        }
+    private finishScanline() {
 
         if (this.scanline === 241) { // VBLANK START
 
@@ -240,23 +270,16 @@ export class PPU {
                 this.NMI();
             }
 
-        } else if (this.scanline >= 261) { // VBLANK END
+        } else if (this.scanline === 261) { // VBLANK END
             this.inVblank = false;
             this.spriteZeroHit = false;
         }
     }
 
-    private copyTemp(cycle: number) {
+    private finishVisibleScanline() {
 
-        if (cycle === 257) {
-            this.baseNametableIndex |= this.tempBaseNametableIndex & 1; // only horizontal bit gets transferred
-            this.coarseX = this.tempCoarseX;
-        }
-
-        if (cycle >= 280 && cycle <= 304) { // supposed to copy more than once for some reason
-            this.baseNametableIndex |= this.tempBaseNametableIndex & 2; // only vertical bit gets transferred
-            this.coarseY = this.tempCoarseY;
-            this.fineY = this.tempFineY;
+        if (this.scanline < 240) { // visible scanlines
+            this.drawSpritesScanline(this.scanline);
         }
 
     }
@@ -473,11 +496,10 @@ export class PPU {
     private drawSpritesScanline(scanline: number) {
         for (let spriteIndex = 0; (spriteIndex + 4) <= this.oam.getSize(); spriteIndex += 4) {
 
+            const xPos = this.oam.read(spriteIndex + 3);
             const yPos = this.oam.read(spriteIndex);
 
-            if (scanline < yPos || scanline >= (yPos + (this.spriteSizeMode ? 16 : 8))) continue; // if the sprite is not on this scanline, skip it
-
-            const xPos = this.oam.read(spriteIndex + 3);
+            if (scanline < yPos || scanline > yPos + (this.spriteSizeMode ? 16 : 8)) continue; // skip sprites outside of the scanline
 
             //if (!this.showLeftSprites && xPos === 0 && yPos === 0) continue;
 
@@ -495,7 +517,7 @@ export class PPU {
             const flipV = Boolean(Util.getBit(attributes, 7));
             const priority = Util.getBit(attributes, 5);
 
-            const slice = scanline - yPos; // the row of the tile to draw, relative to the top of the tile
+            const slice = scanline - yPos;
 
             //if (tileIndex !== 0) console.log(`Drawing sprite $${Util.hex(tileIndex)} at X: ${Util.hex(xPos)} Y: ${Util.hex(yPos)}`);
             this.drawTileSlice(tileIndex, slice, xPos, yPos, palette, flipH, flipV, this.patternTables[this.spritePatternTable], true, priority);
@@ -504,16 +526,19 @@ export class PPU {
 
     private drawBackgroundCycle(cycle: number, scanline: number) {
 
-        if (cycle % 8 !== 7) return; // only draw on the last cycle of each tile
+        if (cycle % 8 !== 0) return;
 
-        const nametable = this.nameTables[this.baseNametableIndex];
+        const nametable = this.nameTables[this.nameTableArrangement[this.baseNametableIndex]];
         const attrTableStartIndex = 0x3C0; // attribute table starts at 0x3C0 in nametable memory
 
         const rowIndex = Math.floor(scanline / 8);
-        const i = 32 * rowIndex + Math.floor(cycle / 8);
+        const i = (32 * rowIndex) + ((Math.floor(cycle / 8) + this.coarseX) % 32); // index of the tile in the nametable, wrapping around at 32 tiles per row
 
-        let xPos = (i % 32) * 8;
-        let yPos = Math.floor(i / 32) * 8;
+        let xPos = Math.floor(cycle / 8) * 8;
+        let yPos = Math.floor(scanline / 8) * 8;
+
+        //xPos += this.fineX;
+        //yPos += this.fineY;
 
         //if (!this.showLeftBackground && xPos === 0 && yPos === 0) continue;
 
@@ -532,9 +557,14 @@ export class PPU {
         palette[2] = this.backgroundPalettes.read(paletteIndex + 2);
         palette[3] = this.backgroundPalettes.read(paletteIndex + 3);
 
-        const slice = scanline - yPos; // the row of the tile to draw, relative to the top of the tile
+        const slice = scanline % 8; // the row of the tile to draw, relative to the top of the tile
 
         this.drawTileSlice(tileIndex, slice, xPos, yPos, palette, false, false, this.patternTables[this.backgroundPatternTable], false, 0);
+        if (this.baseNametableIndex === 0) {
+            this.drawPixel(this.cycle, this.scanline, 0, 255, 0, RenderPriority.DEBUG);
+        } else if (this.baseNametableIndex === 1) {
+            this.drawPixel(this.cycle, this.scanline, 255, 0, 0, RenderPriority.DEBUG);
+        }
 
     }
 

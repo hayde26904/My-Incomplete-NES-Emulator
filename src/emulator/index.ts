@@ -165,6 +165,8 @@ function loop() {
   const frameBuffer = ppu.getFrameBuffer();
   bufferCtx.putImageData(frameBuffer, 0, 0); // draw to buffer canvas
 
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
   ctx.drawImage(bufferCanvas, 0, 0, canvas.width, canvas.height); // draw on main canvas and resize
 
   ppu.clearFrameBuffer(); // clear the frame buffer for the next frame
